@@ -391,11 +391,11 @@ oc get jobs -n ml-inference
 
 Expected output:
 ```
-NAME                           STATUS      COMPLETIONS   DURATION   AGE
-job-batch-customer-inference   Suspended   0/1                      2s
+NAME                           STATUS    COMPLETIONS   DURATION   AGE
+job-batch-customer-inference   Running   0/1           2s         2s
 ```
 
-The production job is created but needs resources. Will it be starved by training jobs?
+**Great news**: The production job is admitted immediately! Even though training jobs are running, Kueue ensures the inference job gets the available CPU (1 CPU available out of 5 total).
 
 ---
 
@@ -409,18 +409,19 @@ oc get workload -A
 Expected output:
 ```
 NAMESPACE      NAME                                       QUEUE               RESERVED IN     ADMITTED   AGE
-ml-inference   job-job-batch-customer-inference-xxxxx    ml-inference-queue                              10s
+ml-inference   job-job-batch-customer-inference-xxxxx    ml-inference-queue   cluster-total   True       10s
 ml-training    job-job-finetune-llm-xxxxx                ml-training-queue   cluster-total   True        15s
 ml-training    job-job-hyperparameter-tuning-xxxxx       ml-training-queue   cluster-total   True        15s
 ml-training    job-job-train-resnet-model-xxxxx          ml-training-queue                               15s
 ```
 
-**Current state**:
-- 2 training jobs admitted (4 CPUs used)
-- 1 training job queued (ResNet needs 2 CPUs)
-- 1 inference job queued (needs 1 CPU)
+**Current state - Fair Sharing in Action**:
+- **Training queue**: 2 jobs admitted (LLM 3 CPU + Hyperparameter 1 CPU = 4 CPUs)
+- **Inference queue**: 1 job admitted (Batch inference 1 CPU)
+- **Total**: 5 CPUs allocated (quota fully utilized!)
+- **Waiting**: ResNet training job (needs 2 CPUs)
 
-Both queues have pending workloads competing for the same 1 available CPU.
+**Key observation**: Both queues are running jobs simultaneously! Production inference got immediate access despite training saturating most of the cluster.
 
 ---
 
@@ -436,21 +437,28 @@ watch -n 2 "oc get jobs -A"
 
 **What you'll observe** (wait ~60 seconds):
 
-When the Hyperparameter training job completes:
-1. 1 CPU is freed (4 CPUs → 3 CPUs used)
-2. **Both queues** have jobs waiting (ResNet needs 2 CPU, Inference needs 1 CPU)
-3. Kueue applies **fair sharing**: Inference job gets admitted (smaller request fits)
-4. Production inference job starts running
-5. When another job completes, ResNet training job gets admitted
+When either the Hyperparameter training job (~60s) or Batch inference job (~70s) completes:
+1. Resources are freed
+2. ResNet training job (waiting, needs 2 CPUs) gets evaluated
+3. When enough resources are available, ResNet is automatically admitted
 
-**Fair sharing in action**:
+**Timeline**:
+- **t=0s**: Hyperparameter (1 CPU) + LLM (3 CPU) + Inference (1 CPU) running, ResNet queued
+- **t=60s**: Hyperparameter completes → 1 CPU freed (4 CPUs remain: LLM 3 + Inference 1)
+  - ResNet still needs 2 CPUs but only 1 available → remains queued
+- **t=70s**: Inference completes → another 1 CPU freed (3 CPUs remain: LLM only)
+  - ResNet needs 2 CPUs, now 2 available (5 - 3 = 2) → **ResNet admitted!**
+
+**Fair sharing demonstrated**:
 ```
 NAMESPACE      NAME                                    STATUS
-ml-inference   job-batch-customer-inference           Running    ← Production got resources!
-ml-training    job-finetune-llm                        Running
-ml-training    job-hyperparameter-tuning               Complete   ← Freed resources
-ml-training    job-train-resnet-model                  Suspended  ← Still waiting
+ml-inference   job-batch-customer-inference           Complete   ← Finished first
+ml-training    job-finetune-llm                        Running    ← Still running
+ml-training    job-hyperparameter-tuning               Complete   ← Finished, freed resources
+ml-training    job-train-resnet-model                  Running    ← Now admitted!
 ```
+
+**Key insight**: Both queues got their jobs admitted and completed successfully. No starvation!
 
 ---
 
@@ -461,26 +469,34 @@ ml-training    job-train-resnet-model                  Suspended  ← Still wait
 oc get clusterqueue cluster-total -o json | jq '.status.flavorsReservation[0].resources'
 ```
 
-Expected output:
+Expected output (when all 3 jobs running initially):
 ```json
 [
   {
     "borrowed": "0",
     "name": "cpu",
-    "total": "4"       ← 4 CPUs allocated across both queues
+    "total": "5"       ← All 5 CPUs allocated!
   },
   {
     "borrowed": "0",
     "name": "memory",
-    "total": "768Mi"   ← Memory split between training and inference
+    "total": "896Mi"   ← Memory for all 3 running jobs
   }
 ]
 ```
 
-Resources are distributed:
-- **Training**: LLM job (3 CPU)
-- **Inference**: Batch inference job (1 CPU)
-- **Fair sharing**: Both teams have running jobs!
+**Resource distribution over time**:
+
+**Phase 1** (initial state):
+- **Training**: LLM (3 CPU) + Hyperparameter (1 CPU) = 4 CPUs
+- **Inference**: Batch inference (1 CPU) = 1 CPU
+- **Total**: 5 CPUs (quota fully utilized)
+- **Queued**: ResNet (2 CPU)
+
+**Phase 2** (after jobs complete):
+- **Training**: LLM (3 CPU) + ResNet (2 CPU) = 5 CPUs
+- **Inference**: None running (completed)
+- **Fair sharing**: Both queues got their jobs completed!
 
 ---
 
