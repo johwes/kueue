@@ -54,6 +54,17 @@ Your organization runs all ML workloads on a shared GPU cluster due to the high 
 4. **Visibility**: Teams can see queue depth and admission status
 5. **Automatic**: No manual intervention required
 
+### Standard Kubernetes vs. Kueue Comparison
+
+| Feature | Standard K8s Job | Kueue-Managed Job |
+|---------|------------------|-------------------|
+| **Admission** | Immediate (can overload nodes) | Quota-based (controlled admission) |
+| **Out-of-Resource** | Pods stay "Pending" indefinitely | Job stays "Suspended" in queue |
+| **Priority** | Simple PodPriority | WorkloadPriorityClass + Fair Sharing |
+| **Visibility** | Hard to see "who is next" | `oc get workloads` shows queue position |
+| **Resource Waste** | Partial jobs can deadlock | Atomic admission prevents waste |
+| **Multi-tenancy** | Hard to enforce fairness | Built-in fair sharing between queues |
+
 ## How Jobs Work with Kueue
 
 ### Standard Kubernetes Job (Without Kueue)
@@ -104,6 +115,71 @@ spec:
 2. **Suspend**: `suspend: true` lets Kueue control admission
 3. **Resource Requests**: Required for Kueue to calculate quota usage
 
+### How Kueue Manages Jobs: The Flow
+
+When you create a Job with `suspend: true` and the queue label, here's what happens:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 1. User Creates Job (suspend: true)                            │
+│    oc apply -f job.yaml                                         │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 2. Kueue Job Controller Detects Job                            │
+│    - Sees kueue.x-k8s.io/queue-name label                       │
+│    - Job is in "Suspended" state                               │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 3. Kueue Creates Workload Object (Automatic)                   │
+│    - Extracts resource requests from Job                        │
+│    - Links to specified LocalQueue                             │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 4. Admission Controller Evaluates Quota                        │
+│    - Checks ClusterQueue available resources                   │
+│    - Applies fair sharing policies                             │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                    ┌────┴────┐
+                    │         │
+                    ▼         ▼
+         ┌──────────────┐  ┌──────────────┐
+         │ Resources    │  │ No Resources │
+         │ Available    │  │ Available    │
+         └──────┬───────┘  └──────┬───────┘
+                │                 │
+                ▼                 ▼
+    ┌──────────────────┐  ┌──────────────────┐
+    │ 5a. ADMITTED     │  │ 5b. QUEUED       │
+    │ - Quota reserved │  │ - Stays suspended│
+    │ - Job unsuspended│  │ - Waits in queue │
+    └────────┬─────────┘  └──────────────────┘
+             │
+             ▼
+    ┌──────────────────┐
+    │ 6. Pods Created  │
+    │ - Kubernetes     │
+    │   scheduler runs │
+    └────────┬─────────┘
+             │
+             ▼
+    ┌──────────────────┐
+    │ 7. Job Completes │
+    │ - Resources      │
+    │   released       │
+    │ - Queued jobs    │
+    │   reconsidered   │
+    └──────────────────┘
+```
+
+**Key Insight:** The `Workload` object is the "invisible bridge" between your Job and Kueue's admission control. You never create it manually - Kueue creates it automatically when it sees a Job with the queue label.
+
 ## Demo Scenario 1: Understanding the Job Lifecycle
 
 This scenario follows a **single job** through its complete lifecycle from creation to completion, showing every state transition.
@@ -126,7 +202,26 @@ Expected: No workloads found.
 
 **Step 2: Submit a single job and watch the lifecycle**
 
-Open **three terminals** to observe different aspects:
+Choose your observation method based on your preference:
+
+#### **Option A: Beginner (Single Terminal)**
+
+Perfect for first-time users - submit and check status periodically:
+
+```bash
+# Submit the job
+oc apply -f ml-training/job-hyperparameter-tuning.yaml
+
+# Monitor status (run multiple times to see progression)
+oc get workload,job -n ml-training
+
+# Or watch continuously (updates every 2 seconds)
+watch -n 2 "oc get workload,job -n ml-training"
+```
+
+#### **Option B: Advanced (Multiple Terminals for Real-Time Observation)**
+
+Best for understanding the exact moment transitions happen:
 
 **Terminal 1 - Watch Workload status**:
 ```bash
@@ -142,6 +237,8 @@ oc get job -n ml-training -w
 ```bash
 oc apply -f ml-training/job-hyperparameter-tuning.yaml
 ```
+
+**The rest of this demo uses the multi-terminal approach for clarity, but you can verify the same information with periodic checks.**
 
 ---
 
@@ -214,6 +311,22 @@ Hyperparameter tuning complete: Wed Mar 26 11:31:00 UTC 2026
 ==========================================
 ```
 
+**Why does this take ~60 seconds?**
+
+This isn't cluster slowness - it's the job itself! Our sample containers use `sleep` commands to simulate real ML training work:
+
+```bash
+# From job-hyperparameter-tuning.yaml
+sleep 10  # Simulating data loading
+sleep 12  # Simulating trial 1
+sleep 12  # Simulating trial 2
+sleep 12  # Simulating trial 3
+sleep 10  # Simulating result saving
+# Total: ~56 seconds of simulated work
+```
+
+In production ML environments, jobs would run actual model training for hours or days. The timing here is compressed for demo purposes so you can complete the learning path quickly.
+
 ---
 
 ### Lifecycle Stages Observed
@@ -242,6 +355,44 @@ Hyperparameter tuning complete: Wed Mar 26 11:31:00 UTC 2026
 ✅ **Resource cleanup**: When jobs complete, resources are immediately released for other workloads
 
 ✅ **Observable lifecycle**: Every state is visible through kubectl/oc commands
+
+## Workload Lifecycle State Diagram
+
+Here's a visual representation of the complete lifecycle you just observed:
+
+```
+Job Created    Workload       Quota          Pods          Pods         Resources
+(suspend:true) Created        Reserved       Running       Complete     Released
+     │             │              │             │              │             │
+     ▼             ▼              ▼             ▼              ▼             ▼
+┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐
+│  Job    │──▶│Workload │──▶│ Admitted│──▶│  Pods   │──▶│  Job    │──▶│Resources│
+│ Created │   │ Object  │   │ by Kueue│   │ Started │   │Complete │   │ Freed   │
+│ by User │   │Auto-gen │   │         │   │ by K8s  │   │         │   │ for Next│
+└─────────┘   └─────────┘   └─────────┘   └─────────┘   └─────────┘   └─────────┘
+
+Kubernetes:      Job          -            -            Pod          Pod           -
+                Suspended                               Running      Succeeded
+
+Kueue:           -        Workload      QuotaReserved  Admitted     Admitted      Finished
+                          Created       =True          =True        =True         =True
+
+Time (typical):  0s          <1s           <1s          instant      60s+          instant
+```
+
+**State Transitions:**
+
+| # | State | What Happens | Observable Command |
+|---|-------|--------------|-------------------|
+| 1 | **Job Created** | User runs `oc apply -f job.yaml` | `oc get job` shows Suspended |
+| 2 | **Workload Created** | Kueue detects job, creates Workload | `oc get workload` shows new entry |
+| 3 | **Quota Reserved** | Kueue reserves resources in ClusterQueue | `oc describe workload` shows QuotaReserved=True |
+| 4 | **Admitted** | Job is unsuspended, pods can be created | `oc get job` shows Running |
+| 5 | **Pods Running** | Kubernetes scheduler places pods on nodes | `oc get pods` shows Running |
+| 6 | **Job Complete** | All pods finish successfully | `oc get job` shows Complete |
+| 7 | **Resources Released** | Quota freed for next workload in queue | Queued workloads can now be admitted |
+
+**Key Insight:** States 1-4 happen in under 2 seconds when resources are available. The "waiting" time you see is the actual job execution (State 5), not Kueue's admission process.
 
 ## Understanding Workload Objects
 
@@ -420,6 +571,37 @@ Conditions:
 ```
 
 **This explains**: The ResNet job needs 2 CPUs, but only 1 CPU is available (5 total - 4 used = 1 available). It needs "1 more" to be admitted.
+
+### Understanding "Atomic Admission" (Gang Scheduling)
+
+The message "1 more needed" reveals a critical Kueue behavior: **Atomic Admission**.
+
+**The Principle:**
+- ✅ **All resources available** → Job admitted, all pods start together
+- ❌ **Partial resources available** → Entire job stays queued, NO pods start
+
+**Why this matters - preventing resource deadlock:**
+
+**Without Kueue** (Standard Kubernetes):
+```
+ResNet job needs 2 CPUs (2 pods, 1 CPU each)
+  → Pod 1 starts immediately (1 CPU available) → Running
+  → Pod 2 waits forever (no more CPUs)        → Pending
+  → Result: Pod 1 wastes 1 CPU doing nothing because the job can't complete!
+```
+
+**With Kueue** (Atomic Admission):
+```
+ResNet job needs 2 CPUs (2 pods, 1 CPU each)
+  → Only 1 CPU available → Entire job stays Suspended
+  → NO pods created yet
+  → When 2 CPUs become available → Both pods start together
+  → Result: No resource waste, job completes successfully!
+```
+
+**This is also called "Gang Scheduling"** - a group of pods are scheduled as an atomic unit. Either the entire gang runs, or none of it runs. This is essential for distributed ML training where all workers must start together.
+
+**Real-world example:** A distributed training job with 8 GPU workers. Without atomic admission, 5 workers might start and wait forever for the other 3, wasting 5 expensive GPUs. With Kueue, all 8 workers start simultaneously when 8 GPUs are available.
 
 ---
 
@@ -677,6 +859,105 @@ Expected output (when all 3 jobs running initially):
 **Without Kueue**: Production inference would be blocked until training manually killed their jobs.
 
 **With Kueue**: Resources are automatically shared fairly. Production gets guaranteed access while training experiments still make progress.
+
+## OpenShift-Specific Features
+
+The **Red Hat Build of Kueue** is fully integrated with OpenShift and provides additional enterprise capabilities:
+
+### Monitoring in the OpenShift Web Console
+
+Beyond the CLI commands you've been using, you can visualize Kueue metrics in the OpenShift Web Console:
+
+**To access Kueue monitoring:**
+1. Log in to the **OpenShift Web Console**
+2. Navigate to **Observe → Dashboards**
+3. Select the **Kueue** dashboard (if available in your cluster)
+
+**Metrics you can view:**
+- Pending workloads per LocalQueue
+- Admitted workloads over time
+- ClusterQueue resource utilization
+- Queue depth trends
+- Workload admission latency
+
+**CLI alternative:** You can also query Prometheus metrics directly:
+```bash
+# Check if Kueue metrics are being collected
+oc get servicemonitor -n kueue-system
+
+# Example: Query pending workloads
+oc exec -n openshift-monitoring prometheus-k8s-0 -- \
+  promtool query instant http://localhost:9090 \
+  'kueue_pending_workloads{cluster_queue="cluster-total"}'
+```
+
+### Integration with Red Hat OpenShift AI (RHOAI)
+
+If your organization uses **Red Hat OpenShift AI** for data science and ML workloads:
+
+**Kueue powers the "Distributed Workloads" feature:**
+- Ray clusters automatically use Kueue for resource management
+- Training jobs are queued and admitted based on available quota
+- Fair sharing between multiple data science teams
+- Integration with Jupyter notebooks and model serving
+
+**To enable in RHOAI:**
+```bash
+# Check if distributed workloads are enabled
+oc get datasciencecluster -n redhat-ods-applications -o yaml | grep distributedWorkloads
+```
+
+### Understanding "Admitted but Pending" (Common Day 2 Issue)
+
+**Symptom:** Your workload shows `ADMITTED=True` but pods stay in "Pending" state
+
+**Example:**
+```bash
+oc get workload -n ml-training
+# NAME                     ADMITTED   AGE
+# job-training-xxxxx      True       5m
+
+oc get pods -n ml-training
+# NAME                     STATUS    AGE
+# job-training-xxxxx-abc   Pending   5m
+```
+
+**Root Cause:** This happens when:
+- **ClusterQueue quota** allows the workload (e.g., 10 GPUs allocated)
+- **Actual node capacity** doesn't exist yet (e.g., GPU nodes haven't scaled up)
+
+**Why it happens on OpenShift:**
+- ClusterQueue quota ≠ physical node capacity
+- MachineAutoscaler might be provisioning GPU nodes
+- GPU node startup can take 5-10 minutes
+
+**Diagnosis:**
+```bash
+# Check why pods are pending
+oc describe pod <pod-name> -n ml-training | grep -A 5 "Events:"
+
+# Common messages:
+# - "0/10 nodes are available: 10 Insufficient nvidia.com/gpu"
+# - "0/10 nodes are available: 10 node(s) didn't match Pod's node affinity"
+
+# Check if GPU nodes are being provisioned
+oc get machines -n openshift-machine-api | grep gpu
+
+# Check MachineAutoscaler status
+oc get machineautoscaler -n openshift-machine-api
+```
+
+**Solution:**
+1. **Wait for nodes to scale up** (if autoscaling is enabled)
+2. **Verify ClusterQueue quota matches actual capacity:**
+   ```bash
+   # Compare ClusterQueue quota vs actual nodes
+   oc get clusterqueue cluster-total -o yaml | grep -A 5 "nominalQuota"
+   oc get nodes -l node.kubernetes.io/instance-type=g5.xlarge
+   ```
+3. **Adjust quota if needed** to match reality
+
+**Best Practice:** Set ClusterQueue quotas based on **guaranteed minimum capacity**, not theoretical maximum. This prevents "admitted but pending" scenarios.
 
 ## Common Workload States
 
