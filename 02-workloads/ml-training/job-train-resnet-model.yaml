@@ -1,0 +1,59 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: job-train-resnet-model
+  namespace: ml-training
+  labels:
+    kueue.x-k8s.io/queue-name: ml-training-queue
+    app: model-training
+    model: resnet50
+spec:
+  suspend: true
+  template:
+    metadata:
+      labels:
+        app: model-training
+        model: resnet50
+    spec:
+      containers:
+      - name: trainer
+        image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+        command: ["sh", "-c"]
+        args:
+        - |
+          echo "=========================================="
+          echo "ML Training: ResNet-50 Image Classification"
+          echo "=========================================="
+          echo "Job: $HOSTNAME"
+          echo "Started: $(date)"
+          echo ""
+          echo "Loading training dataset (ImageNet subset)..."
+          sleep 15
+          echo "Initializing ResNet-50 architecture..."
+          sleep 10
+          echo ""
+          echo "Training epoch 1/10 - Loss: 2.45, Accuracy: 45%"
+          sleep 20
+          echo "Training epoch 2/10 - Loss: 1.82, Accuracy: 58%"
+          sleep 20
+          echo "Training epoch 3/10 - Loss: 1.34, Accuracy: 67%"
+          sleep 20
+          echo ""
+          echo "Validating model on test set..."
+          sleep 15
+          echo "Final Accuracy: 72.3%"
+          echo "Saving model checkpoint to storage..."
+          sleep 10
+          echo ""
+          echo "Training complete: $(date)"
+          echo "=========================================="
+        resources:
+          requests:
+            cpu: "2"
+            memory: "4Gi"
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+      restartPolicy: Never
+  backoffLimit: 2

@@ -1,20 +1,56 @@
 # Module 00: Setup and Installation
 
-This module covers installing the Red Hat Build of Kueue operator on your OpenShift cluster.
+## The Problem: GPU Resource Sharing in ML/AI Workloads
+
+### Why Can't We Just Use Separate Clusters?
+
+In traditional application development, organizations typically maintain separate infrastructure for:
+- **Development/Test environments** - for experimentation and testing
+- **Production environments** - for serving customers
+
+This separation works well when resources are inexpensive. However, **ML/AI workloads fundamentally change this equation:**
+
+| Traditional (CPU/Memory) | ML/AI (GPU) |
+|-------------------------|-------------|
+| CPUs are relatively cheap | GPUs are 10-100x more expensive |
+| Easy to provision separate clusters | Separate GPU clusters are cost-prohibitive |
+| Dev/Test/Prod separation is standard | All workloads must share GPU infrastructure |
+
+### The Multi-Tenancy Challenge
+
+When multiple ML workload types share the same GPU cluster, you face critical challenges:
+
+**Without Kueue:**
+- ❌ Training experiments randomly consume all GPUs
+- ❌ Production inference workloads are starved of resources
+- ❌ SLA breaches impact customers
+- ❌ No visibility into resource allocation
+- ❌ Manual intervention required to resolve conflicts
+- ❌ GPU utilization is inefficient (idle or fully saturated)
+
+**With Kueue:**
+- ✅ Production workloads get guaranteed resource quotas
+- ✅ Training jobs use idle capacity intelligently
+- ✅ Fair queueing prevents starvation
+- ✅ Transparent visibility into workload admission
+- ✅ Automatic resource management
+- ✅ Maximum GPU utilization
+
+## What is Red Hat Build of Kueue?
+
+Kueue is a Kubernetes-native job queueing system that solves the multi-tenancy challenge by providing fair resource sharing, quota management, and intelligent workload admission control.
+
+**Red Hat Build of Kueue** is an enterprise-supported operator that brings upstream Kueue capabilities to OpenShift:
+- Hardened, tested builds of Kueue
+- Enterprise support from Red Hat
+- Integration with OpenShift AI and other Red Hat products
+- Regular security updates and patches
 
 ## Prerequisites
 
 - OpenShift cluster (4.17 or later recommended)
 - Cluster administrator privileges
 - `oc` CLI installed and logged in
-
-## What is Red Hat Build of Kueue?
-
-Red Hat Build of Kueue is an enterprise-supported operator that brings upstream Kueue capabilities to OpenShift. It provides:
-- Hardened, tested builds of Kueue
-- Enterprise support from Red Hat
-- Integration with OpenShift AI and other Red Hat products
-- Regular security updates and patches
 
 ## Installation Methods
 

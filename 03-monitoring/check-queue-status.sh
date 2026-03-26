@@ -45,63 +45,63 @@ fi
 echo ""
 echo "Checking LocalQueues..."
 
-# Check team-alpha queue
-if oc get localqueue team-alpha-queue -n team-alpha &>/dev/null; then
-    echo "✓ LocalQueue 'team-alpha-queue' exists"
+# Check ml-training queue
+if oc get localqueue ml-training-queue -n ml-training &>/dev/null; then
+    echo "✓ LocalQueue 'ml-training-queue' exists"
 
-    ACTIVE=$(oc get localqueue team-alpha-queue -n team-alpha -o jsonpath='{.status.conditions[?(@.type=="Active")].status}')
+    ACTIVE=$(oc get localqueue ml-training-queue -n ml-training -o jsonpath='{.status.conditions[?(@.type=="Active")].status}')
     if [ "$ACTIVE" == "True" ]; then
         echo "  ✓ LocalQueue is active"
     else
         echo "  ✗ LocalQueue is not active"
     fi
 else
-    echo "✗ LocalQueue 'team-alpha-queue' not found in team-alpha namespace"
+    echo "✗ LocalQueue 'ml-training-queue' not found in ml-training namespace"
 fi
 
-# Check team-beta queue
-if oc get localqueue team-beta-queue -n team-beta &>/dev/null; then
-    echo "✓ LocalQueue 'team-beta-queue' exists"
+# Check ml-inference queue
+if oc get localqueue ml-inference-queue -n ml-inference &>/dev/null; then
+    echo "✓ LocalQueue 'ml-inference-queue' exists"
 
-    ACTIVE=$(oc get localqueue team-beta-queue -n team-beta -o jsonpath='{.status.conditions[?(@.type=="Active")].status}')
+    ACTIVE=$(oc get localqueue ml-inference-queue -n ml-inference -o jsonpath='{.status.conditions[?(@.type=="Active")].status}')
     if [ "$ACTIVE" == "True" ]; then
         echo "  ✓ LocalQueue is active"
     else
         echo "  ✗ LocalQueue is not active"
     fi
 else
-    echo "✗ LocalQueue 'team-beta-queue' not found in team-beta namespace"
+    echo "✗ LocalQueue 'ml-inference-queue' not found in ml-inference namespace"
 fi
 
 echo ""
 echo "Checking for pending workloads..."
 
 # Check for pending workloads
-PENDING_ALPHA=$(oc get workload -n team-alpha -o json 2>/dev/null | jq -r '[.items[] | select(.status.admission == null)] | length')
-PENDING_BETA=$(oc get workload -n team-beta -o json 2>/dev/null | jq -r '[.items[] | select(.status.admission == null)] | length')
+PENDING_ALPHA=$(oc get workload -n ml-training -o json 2>/dev/null | jq -r '[.items[] | select(.status.admission == null)] | length')
+PENDING_BETA=$(oc get workload -n ml-inference -o json 2>/dev/null | jq -r '[.items[] | select(.status.admission == null)] | length')
 
 if [ "$PENDING_ALPHA" -gt 0 ]; then
-    echo "⚠ Team Alpha has $PENDING_ALPHA pending workload(s)"
+    echo "⚠ ML Training has $PENDING_ALPHA pending workload(s)"
     echo "  Reasons:"
-    oc get workload -n team-alpha -o json 2>/dev/null | jq -r '
+    oc get workload -n ml-training -o json 2>/dev/null | jq -r '
         .items[] |
         select(.status.admission == null) |
         "  - \(.metadata.name): \(.status.conditions[]? | select(.type=="Admitted") | .message // "Unknown")"
     ' || echo "  Unable to retrieve reasons"
 else
-    echo "✓ Team Alpha has no pending workloads"
+    echo "✓ ML Training has no pending workloads"
 fi
 
 if [ "$PENDING_BETA" -gt 0 ]; then
-    echo "⚠ Team Beta has $PENDING_BETA pending workload(s)"
+    echo "⚠ ML Inference has $PENDING_BETA pending workload(s)"
     echo "  Reasons:"
-    oc get workload -n team-beta -o json 2>/dev/null | jq -r '
+    oc get workload -n ml-inference -o json 2>/dev/null | jq -r '
         .items[] |
         select(.status.admission == null) |
         "  - \(.metadata.name): \(.status.conditions[]? | select(.type=="Admitted") | .message // "Unknown")"
     ' || echo "  Unable to retrieve reasons"
 else
-    echo "✓ Team Beta has no pending workloads"
+    echo "✓ ML Inference has no pending workloads"
 fi
 
 echo ""

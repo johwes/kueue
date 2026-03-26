@@ -1,15 +1,41 @@
 # Module 03: Monitoring and Observability
 
-This module covers how to monitor Kueue resources, troubleshoot issues, and understand the state of your queues and workloads.
+This module shows you how to monitor Kueue resources and verify that your ML training/inference resource sharing is working as intended.
+
+## Success Metrics: Did Kueue Solve the Problem?
+
+The goal of this demo was to solve the GPU sharing challenge:eliminate resource starvation of production inference workloads while allowing training experiments to use idle capacity.
+
+### Key Success Metrics
+
+**✅ Production SLA Compliance**
+- Inference workloads are never starved of resources
+- Batch inference jobs complete within SLA windows
+- Production queue depth stays manageable
+
+**✅ Fair Resource Sharing**
+- Both training and inference get their fair share
+- No single workload type monopolizes all resources
+- Queue admission is transparent and predictable
+
+**✅ Efficient GPU Utilization**
+- Cluster resources stay utilized (not idle)
+- Training experiments run during idle periods
+- No manual intervention required
+
+**✅ Operational Visibility**
+- Clear view of queue status and resource allocation
+- Easy to identify and diagnose issues
+- Predictable workload admission behavior
 
 ## Overview
 
-Learn how to:
-1. Monitor ClusterQueue and LocalQueue status
-2. Track workload admission and lifecycle
-3. Diagnose pending workloads
-4. View resource utilization
-5. Troubleshoot common issues
+In this module, you'll learn how to:
+1. Verify production workloads are never starved
+2. Monitor resource utilization across training and inference
+3. Track workload admission and lifecycle
+4. Diagnose pending workloads
+5. Measure success metrics for your ML platform
 
 ## Quick Monitoring Commands
 
@@ -43,10 +69,10 @@ Key status fields:
 oc get localqueue -A
 
 # List LocalQueues in specific namespace
-oc get localqueue -n team-alpha
+oc get localqueue -n ml-training
 
 # Detailed LocalQueue status
-oc describe localqueue team-alpha-queue -n team-alpha
+oc describe localqueue ml-training-queue -n ml-training
 
 # Watch LocalQueues
 watch -n 2 "oc get localqueue -A"
@@ -65,16 +91,16 @@ Key information:
 oc get workload -A
 
 # List workloads in specific namespace
-oc get workload -n team-alpha
+oc get workload -n ml-training
 
 # Detailed workload information
-oc describe workload -n team-alpha <workload-name>
+oc describe workload -n ml-training <workload-name>
 
 # Watch workload changes
 watch -n 2 "oc get workload -A"
 
 # Get workload conditions
-oc get workload -n team-alpha <workload-name> -o jsonpath='{.status.conditions}' | jq
+oc get workload -n ml-training <workload-name> -o jsonpath='{.status.conditions}' | jq
 ```
 
 Workload states:
@@ -87,19 +113,19 @@ Workload states:
 
 ```bash
 # List jobs in namespace
-oc get jobs -n team-alpha
+oc get jobs -n ml-training
 
 # Watch job status
-watch -n 2 "oc get jobs -n team-alpha"
+watch -n 2 "oc get jobs -n ml-training"
 
 # List pods for a specific job
-oc get pods -n team-alpha -l job-name=job-data-processing
+oc get pods -n ml-training -l job-name=job-data-processing
 
 # View pod logs
-oc logs -n team-alpha <pod-name>
+oc logs -n ml-training <pod-name>
 
 # Follow pod logs in real-time
-oc logs -f -n team-alpha <pod-name>
+oc logs -f -n ml-training <pod-name>
 ```
 
 ## Monitoring Scripts
@@ -200,7 +226,7 @@ oc get clusterqueue cluster-total -o jsonpath='{.status.flavorsReservation[0].re
 
 **Step 1**: Check workload status
 ```bash
-oc describe workload -n team-alpha <workload-name>
+oc describe workload -n ml-training <workload-name>
 ```
 
 Look for conditions explaining why it's pending:
@@ -217,7 +243,7 @@ Look at `flavorsReservation` to see if quota is exhausted.
 
 **Step 3**: Check LocalQueue connection
 ```bash
-oc describe localqueue team-alpha-queue -n team-alpha
+oc describe localqueue ml-training-queue -n ml-training
 ```
 
 Ensure the LocalQueue is properly connected to the ClusterQueue.
@@ -226,12 +252,12 @@ Ensure the LocalQueue is properly connected to the ClusterQueue.
 
 **Check preemption events**:
 ```bash
-oc get events -n team-alpha --sort-by='.lastTimestamp' | grep -i preempt
+oc get events -n ml-training --sort-by='.lastTimestamp' | grep -i preempt
 ```
 
 **Check workload history**:
 ```bash
-oc describe workload -n team-alpha <workload-name>
+oc describe workload -n ml-training <workload-name>
 ```
 
 Look for `Evicted` condition with reason (e.g., `Preempted`, `PodsReadyTimeout`).
@@ -255,12 +281,12 @@ Kueue reserves quota, but actual node capacity might be exhausted.
 
 2. **Image pull issues**
 ```bash
-oc describe pod -n team-alpha <pod-name>
+oc describe pod -n ml-training <pod-name>
 ```
 
 3. **Security policies**
 ```bash
-oc get events -n team-alpha --sort-by='.lastTimestamp'
+oc get events -n ml-training --sort-by='.lastTimestamp'
 ```
 
 ## Monitoring Best Practices
@@ -319,11 +345,11 @@ oc get resourceflavor -o json | jq -r '.items[] | {name: .metadata.name, nodeLab
 ## Cleanup Commands
 
 ```bash
-# Delete all completed jobs in team-alpha
-oc delete jobs -n team-alpha --field-selector status.successful=1
+# Delete all completed jobs in ml-training
+oc delete jobs -n ml-training --field-selector status.successful=1
 
-# Delete all jobs in team-beta
-oc delete jobs -n team-beta --all
+# Delete all jobs in ml-inference
+oc delete jobs -n ml-inference --all
 
 # Clean up all demo resources
 cd ../01-resource-configuration

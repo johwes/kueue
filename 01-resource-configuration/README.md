@@ -1,39 +1,70 @@
 # Module 01: Resource Configuration
 
-This module demonstrates how to configure Kueue resources to enable fair resource sharing between teams.
+This module demonstrates how to configure Kueue resources to solve the GPU sharing challenge between ML training and inference workloads.
+
+## The Resource Allocation Challenge
+
+Your organization has invested in GPU infrastructure for ML workloads. The challenge: **How do you allocate these expensive resources fairly between two competing needs?**
+
+### ML Training (Experimentation)
+- **Needs**: Large resource bursts for model training
+- **Pattern**: Unpredictable, bursty workload
+- **Tolerance**: Can wait in queue during busy periods
+- **Priority**: Lower (innovation vs. production)
+
+### ML Inference (Production)
+- **Needs**: Guaranteed resources for customer SLAs
+- **Pattern**: Predictable, scheduled batch jobs
+- **Tolerance**: Cannot be starved of resources
+- **Priority**: Higher (production-critical)
+
+## Resource Configuration Strategy
+
+We'll configure Kueue to solve this by:
+1. **Total GPU pool**: Defined in ClusterQueue with fixed quota
+2. **Production guarantee**: Inference workloads get priority access
+3. **Fair sharing**: Training uses idle capacity without blocking production
+4. **Transparent queueing**: Visibility into admission decisions
 
 ## Overview
 
 In this module, you'll create:
-1. **ResourceFlavors** - Define types of resources available in the cluster
-2. **ClusterQueue** - Create a cluster-wide resource pool
-3. **LocalQueues** - Create team-specific queues that map to the ClusterQueue
+1. **ResourceFlavors** - Define GPU/CPU resource types
+2. **ClusterQueue** - Total resource pool available for ML workloads
+3. **LocalQueues** - Separate queues for training vs. inference with different priorities
 
 ## Architecture
 
 ```
 ResourceFlavor (default-flavor)
          ↓
-ClusterQueue (cluster-total)
-    ├── Quota: 10 CPUs, 20Gi memory
+ClusterQueue (gpu-cluster-total)
+    ├── Total: 10 CPUs, 20Gi memory
+    │   (In production: GPUs would be managed here)
     │
-    ├──→ LocalQueue (team-alpha-queue)
-    │    └── Namespace: team-alpha
-    │         Guaranteed: 6 CPUs, 12Gi memory
+    ├──→ LocalQueue (ml-training-queue)
+    │    └── Namespace: ml-training
+    │         Purpose: Model training, experiments
+    │         Can tolerate queueing
     │
-    └──→ LocalQueue (team-beta-queue)
-         └── Namespace: team-beta
-              Guaranteed: 4 CPUs, 8Gi memory
+    └──→ LocalQueue (ml-inference-queue)
+         └── Namespace: ml-inference
+              Purpose: Production batch inference
+              Needs guaranteed access
 ```
+
+**Note:** This demo uses CPU resources for portability. In production, you'd configure GPU ResourceFlavors (e.g., `nvidia.com/gpu`) using the same Kueue patterns.
 
 ## Step 1: Create Namespaces
 
-First, create separate namespaces for each team:
+Create separate namespaces for ML training and inference workloads:
 
 ```bash
-oc create namespace team-alpha
-oc create namespace team-beta
+oc create namespace ml-training
+oc create namespace ml-inference
 ```
+
+**Important:** Namespaces must have the label `kueue.openshift.io/managed=true` for Kueue to process workloads in them. Our YAML files include this label.
 
 ## Step 2: Create ResourceFlavor
 
@@ -96,29 +127,31 @@ The status shows:
 LocalQueues are namespace-scoped and map to a ClusterQueue. Teams submit jobs to their LocalQueue.
 
 ```bash
-oc apply -f localqueue-team-alpha.yaml
-oc apply -f localqueue-team-beta.yaml
+oc apply -f localqueue-ml-training.yaml
+oc apply -f localqueue-ml-inference.yaml
 ```
 
 **LocalQueue Configuration:**
 
-**team-alpha-queue:**
-- Namespace: `team-alpha`
+**ml-training-queue:**
+- Namespace: `ml-training`
 - ClusterQueue: `cluster-total`
-- Higher allocation (60% of cluster resources)
+- Purpose: Experimentation, model training, hyperparameter tuning
+- Behavior: Can use idle resources, tolerates queueing
 
-**team-beta-queue:**
-- Namespace: `team-beta`
+**ml-inference-queue:**
+- Namespace: `ml-inference`
 - ClusterQueue: `cluster-total`
-- Lower allocation (40% of cluster resources)
+- Purpose: Production batch inference, customer-facing workloads
+- Behavior: Priority access to ensure SLA compliance
 
-Note: LocalQueues don't define quotas themselves; they inherit from the ClusterQueue and compete fairly based on the ClusterQueue's fairness policy.
+Note: LocalQueues don't define quotas themselves; they inherit from the ClusterQueue and compete fairly based on the ClusterQueue's fairness and priority policies.
 
 View LocalQueues:
 ```bash
-oc get localqueue -n team-alpha
-oc get localqueue -n team-beta
-oc describe localqueue team-alpha-queue -n team-alpha
+oc get localqueue -n ml-training
+oc get localqueue -n ml-inference
+oc describe localqueue ml-training-queue -n ml-training
 ```
 
 ## Step 5: Verify Configuration
@@ -151,22 +184,30 @@ Kueue doesn't "pre-allocate" resources to each LocalQueue. Instead:
 3. Priority and preemption rules apply
 4. Resources are allocated dynamically as jobs are submitted
 
-### Example Scenario
+### Example Scenario: Production vs. Training
 
-If team-alpha submits jobs requesting 15 CPUs when only 10 are available:
-1. First 10 CPUs worth of jobs are admitted
-2. Remaining jobs wait in queue
-3. When team-beta's jobs complete, freed resources go to waiting jobs
-4. If both teams have pending jobs, resources are shared fairly
+**Scenario 1: Training Saturates the Cluster**
+If ML training team submits 5 large model training jobs (15 CPUs total) when only 10 CPUs are available:
+1. First 10 CPUs worth of training jobs are admitted
+2. Remaining training jobs wait in queue
+3. When production inference job arrives, Kueue admits it fairly
+4. Resources are balanced between production and training needs
+
+**Scenario 2: Production Gets Priority**
+If production inference jobs need guaranteed resources:
+1. Configure WorkloadPriorityClasses (covered in advanced usage)
+2. Production jobs can preempt lower-priority training jobs
+3. Training experiments resume when production workload completes
+4. This ensures SLA compliance for customer-facing workloads
 
 ## Configuration Files Reference
 
 | File | Purpose | Scope |
 |------|---------|-------|
-| `resourceflavor.yaml` | Defines resource types | Cluster |
-| `clusterqueue.yaml` | Creates resource pool | Cluster |
-| `localqueue-team-alpha.yaml` | Team Alpha's queue | Namespace |
-| `localqueue-team-beta.yaml` | Team Beta's queue | Namespace |
+| `resourceflavor.yaml` | Defines resource types (GPU/CPU) | Cluster |
+| `clusterqueue.yaml` | Total ML resource pool | Cluster |
+| `localqueue-ml-training.yaml` | Training workload queue | Namespace |
+| `localqueue-ml-inference.yaml` | Inference workload queue | Namespace |
 
 ## Advanced Options (Not Covered)
 
@@ -189,7 +230,7 @@ oc get clusterqueue cluster-total -o yaml
 ### LocalQueue not mapping to ClusterQueue
 
 ```bash
-oc describe localqueue team-alpha-queue -n team-alpha
+oc describe localqueue ml-training-queue -n ml-training
 # Verify spec.clusterQueue matches ClusterQueue name
 ```
 

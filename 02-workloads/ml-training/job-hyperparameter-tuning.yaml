@@ -1,0 +1,58 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: job-hyperparameter-tuning
+  namespace: ml-training
+  labels:
+    kueue.x-k8s.io/queue-name: ml-training-queue
+    app: hyperparameter-tuning
+spec:
+  suspend: true
+  template:
+    metadata:
+      labels:
+        app: hyperparameter-tuning
+    spec:
+      containers:
+      - name: tuner
+        image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+        command: ["sh", "-c"]
+        args:
+        - |
+          echo "=========================================="
+          echo "ML Experimentation: Hyperparameter Tuning"
+          echo "=========================================="
+          echo "Job: $HOSTNAME"
+          echo "Started: $(date)"
+          echo ""
+          echo "Search space: learning_rate, batch_size, dropout"
+          echo "Running Bayesian optimization..."
+          sleep 10
+          echo ""
+          echo "Trial 1/6 - lr=0.001, batch=32, dropout=0.2 → val_acc=0.68"
+          sleep 12
+          echo "Trial 2/6 - lr=0.005, batch=64, dropout=0.3 → val_acc=0.71"
+          sleep 12
+          echo "Trial 3/6 - lr=0.002, batch=32, dropout=0.1 → val_acc=0.74"
+          sleep 12
+          echo ""
+          echo "Best configuration found:"
+          echo "  Learning rate: 0.002"
+          echo "  Batch size: 32"
+          echo "  Dropout: 0.1"
+          echo "  Validation accuracy: 74.2%"
+          echo ""
+          echo "Saving results to experiment tracking..."
+          sleep 10
+          echo "Hyperparameter tuning complete: $(date)"
+          echo "=========================================="
+        resources:
+          requests:
+            cpu: "1"
+            memory: "2Gi"
+          limits:
+            cpu: "1"
+            memory: "2Gi"
+      restartPolicy: Never
+  backoffLimit: 2

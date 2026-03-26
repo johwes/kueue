@@ -21,17 +21,17 @@ echo ""
 
 # Step 1: Delete jobs and workloads
 echo "🗑️  Deleting jobs and workloads..."
-oc delete jobs --all -n team-alpha 2>/dev/null || echo "  No jobs in team-alpha"
-oc delete jobs --all -n team-beta 2>/dev/null || echo "  No jobs in team-beta"
-oc delete workloads --all -n team-alpha 2>/dev/null || echo "  No workloads in team-alpha"
-oc delete workloads --all -n team-beta 2>/dev/null || echo "  No workloads in team-beta"
+oc delete jobs --all -n ml-training 2>/dev/null || echo "  No jobs in ml-training"
+oc delete jobs --all -n ml-inference 2>/dev/null || echo "  No jobs in ml-inference"
+oc delete workloads --all -n ml-training 2>/dev/null || echo "  No workloads in ml-training"
+oc delete workloads --all -n ml-inference 2>/dev/null || echo "  No workloads in ml-inference"
 echo "  ✓ Jobs and workloads deleted"
 
 # Step 2: Delete LocalQueues
 echo ""
 echo "🗑️  Deleting LocalQueues..."
-oc delete localqueue --all -n team-alpha 2>/dev/null || echo "  No LocalQueues in team-alpha"
-oc delete localqueue --all -n team-beta 2>/dev/null || echo "  No LocalQueues in team-beta"
+oc delete localqueue --all -n ml-training 2>/dev/null || echo "  No LocalQueues in ml-training"
+oc delete localqueue --all -n ml-inference 2>/dev/null || echo "  No LocalQueues in ml-inference"
 echo "  ✓ LocalQueues deleted"
 
 # Step 3: Delete ClusterQueues
@@ -49,8 +49,8 @@ echo "  ✓ ResourceFlavors deleted"
 # Step 5: Delete team namespaces
 echo ""
 echo "🗑️  Deleting team namespaces..."
-oc delete namespace team-alpha 2>/dev/null || echo "  Namespace team-alpha not found"
-oc delete namespace team-beta 2>/dev/null || echo "  Namespace team-beta not found"
+oc delete namespace ml-training 2>/dev/null || echo "  Namespace ml-training not found"
+oc delete namespace ml-inference 2>/dev/null || echo "  Namespace ml-inference not found"
 echo "  ✓ Namespaces deleted"
 
 # Step 6: Delete Kueue CR instance

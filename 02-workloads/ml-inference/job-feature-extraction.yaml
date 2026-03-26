@@ -1,0 +1,52 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: job-feature-extraction
+  namespace: ml-inference
+  labels:
+    kueue.x-k8s.io/queue-name: ml-inference-queue
+    app: feature-extraction
+spec:
+  suspend: true
+  template:
+    metadata:
+      labels:
+        app: feature-extraction
+    spec:
+      containers:
+      - name: extractor
+        image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+        command: ["sh", "-c"]
+        args:
+        - |
+          echo "=========================================="
+          echo "ML Inference: Batch Feature Extraction"
+          echo "=========================================="
+          echo "Job: $HOSTNAME"
+          echo "Started: $(date)"
+          echo ""
+          echo "Loading embedding model..."
+          sleep 10
+          echo "Processing document batch 1/2 (10000 docs)..."
+          sleep 18
+          echo "  - Embeddings generated: 10000/10000"
+          echo "Processing document batch 2/2 (10000 docs)..."
+          sleep 18
+          echo "  - Embeddings generated: 10000/10000"
+          echo ""
+          echo "Storing feature vectors in vector database..."
+          sleep 12
+          echo "Total documents processed: 20,000"
+          echo ""
+          echo "Feature extraction complete: $(date)"
+          echo "=========================================="
+        resources:
+          requests:
+            cpu: "1"
+            memory: "1Gi"
+          limits:
+            cpu: "1"
+            memory: "1Gi"
+      restartPolicy: Never
+  backoffLimit: 2
