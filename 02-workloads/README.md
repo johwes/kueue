@@ -130,11 +130,11 @@ oc get clusterqueue cluster-total -o jsonpath='{.spec.resourceGroups[0].flavors[
 
 Expected output:
 ```
-NAME            COHORT   PENDING WORKLOADS   ADMITTED WORKLOADS
-cluster-total            0                   0
+NAME            COHORT   PENDING WORKLOADS
+cluster-total            0
 ```
 
-This shows the cluster is ready with no workloads.
+This shows the cluster is ready with no pending workloads.
 
 ---
 
@@ -150,13 +150,13 @@ oc get jobs -n ml-training
 
 Expected output:
 ```
-NAME                          COMPLETIONS   DURATION   AGE
-job-finetune-llm              0/1                      5s
-job-hyperparameter-tuning     0/1                      5s
-job-train-resnet-model        0/1                      5s
+NAME                        STATUS      COMPLETIONS   DURATION   AGE
+job-finetune-llm            Running     0/1           3s         4s
+job-hyperparameter-tuning   Running     0/1           3s         3s
+job-train-resnet-model      Suspended   0/1                      3s
 ```
 
-Notice: All jobs are created with **COMPLETIONS 0/1** and remain suspended.
+**What's happening**: Jobs that are immediately admitted show STATUS "Running", while jobs waiting in queue show "Suspended". Admission happens within 1-2 seconds.
 
 ---
 
@@ -169,15 +169,20 @@ oc get workload -n ml-training
 
 Expected output (wait ~10 seconds after job creation):
 ```
-NAME                                     QUEUE               ADMITTED   AGE
-job-finetune-llm-xxxxx                  ml-training-queue   True       20s
-job-train-resnet-model-xxxxx            ml-training-queue   True       20s
-job-hyperparameter-tuning-xxxxx         ml-training-queue   False      20s
+NAME                                  QUEUE               RESERVED IN     ADMITTED   AGE
+job-job-finetune-llm-xxxxx           ml-training-queue   cluster-total   True       15s
+job-job-hyperparameter-tuning-xxxxx  ml-training-queue   cluster-total   True       15s
+job-job-train-resnet-model-xxxxx     ml-training-queue                              15s
 ```
 
 **KEY OBSERVATION**:
-- ✅ **2 jobs ADMITTED** (ResNet + LLM = 5 CPUs, 10Gi - exactly fills quota!)
-- ⏳ **1 job PENDING** (Hyperparameter tuning waiting for resources)
+- ✅ **2 jobs ADMITTED** (LLM + Hyperparameter = 4 CPUs, 640Mi)
+- ⏳ **1 job PENDING** (ResNet waiting for resources)
+
+**Note**: Jobs are admitted in creation order (FIFO). When using `oc apply -f ml-training/`, files are processed alphabetically:
+1. job-**f**inetune-llm (3 CPU) - admitted first
+2. job-**h**yperparameter-tuning (1 CPU) - admitted second (total: 4 CPU)
+3. job-**t**rain-resnet-model (2 CPU) - **queued** (would need 6 CPU total)
 
 ---
 
@@ -193,13 +198,13 @@ oc get pods -n ml-training
 
 Expected output:
 ```
-NAME                          COMPLETIONS   DURATION   AGE
-job-finetune-llm              0/1           30s        1m
-job-train-resnet-model        0/1           30s        1m
-job-hyperparameter-tuning     0/1                      1m    ← Still suspended!
+NAME                        STATUS      COMPLETIONS   DURATION   AGE
+job-finetune-llm            Running     0/1           30s        1m
+job-hyperparameter-tuning   Running     0/1           30s        1m
+job-train-resnet-model      Suspended   0/1                      1m    ← Still suspended!
 ```
 
-You should see pods running for ResNet and LLM jobs, but NO pods for hyperparameter-tuning because it's still queued.
+You should see pods running for LLM and Hyperparameter jobs, but NO pods for ResNet because it's still queued.
 
 ---
 
@@ -214,21 +219,21 @@ Expected output:
 ```json
 [
   {
-    "name": "cpu",
-    "total": "5",
     "borrowed": "0",
-    "used": "5"        ← CPU quota fully utilized!
+    "name": "cpu",
+    "total": "4"       ← Currently allocated CPUs (LLM 3 + Hyperparameter 1)
   },
   {
-    "name": "memory",
-    "total": "2Gi",
     "borrowed": "0",
-    "used": "768Mi"    ← Memory usage (minimal for demo cost-efficiency)
+    "name": "memory",
+    "total": "640Mi"   ← Currently allocated memory (512Mi + 128Mi)
   }
 ]
 ```
 
-**This proves**: The cluster CPU quota is at capacity - no resources available for the queued job.
+**This proves**: 4 out of 5 CPUs are allocated. ResNet job needs 2 CPUs but only 1 is available (5 - 4 = 1), so it must wait.
+
+**Note**: The "total" field shows **currently allocated resources**, not the maximum quota. To see the maximum quota, use the command from Step 1.
 
 ---
 
@@ -248,10 +253,11 @@ Conditions:
   Type:                QuotaReserved
   Status:              False
   Reason:              Pending
-  Message:             couldn't assign flavors to pod set main: insufficient quota...
+  Message:             couldn't assign flavors to pod set main: insufficient unused quota
+                       for cpu in flavor default-flavor, 1 more needed
 ```
 
-**This explains**: The workload is waiting because there's no quota available.
+**This explains**: The ResNet job needs 2 CPUs, but only 1 CPU is available (5 total - 4 used = 1 available). It needs "1 more" to be admitted.
 
 ---
 
@@ -266,13 +272,14 @@ watch -n 2 "oc get workload -n ml-training"
 watch -n 2 "oc get clusterqueue cluster-total"
 ```
 
-**Wait for one of the running jobs to complete** (~2-3 minutes for these demo jobs).
+**Wait for one of the running jobs to complete** (~1 minute for the Hyperparameter job, ~2 minutes for LLM job).
 
 **What you'll observe**:
-1. When ResNet job completes → resources released (5 CPUs → 3 CPUs used)
-2. Queued hyperparameter job immediately admitted (3 CPUs → 4 CPUs used)
-3. The queued job transitions from `ADMITTED=False` to `ADMITTED=True`
-4. Pods start for the previously queued job
+1. When Hyperparameter job completes → resources released (4 CPUs → 3 CPUs used)
+2. Queued ResNet job immediately admitted (3 CPUs → 5 CPUs used)
+3. The ResNet job transitions from `ADMITTED=(blank)` to `ADMITTED=True`
+4. ResNet job status changes from `Suspended` to `Running`
+5. Pods start for the ResNet job
 
 ---
 
@@ -288,11 +295,13 @@ oc get jobs -n ml-training
 
 Expected progression:
 ```
-NAME                                QUEUE               ADMITTED   AGE
-job-train-resnet-model-xxxxx       ml-training-queue   True       5m    ← Completed
-job-finetune-llm-xxxxx             ml-training-queue   True       5m    ← Still running
-job-hyperparameter-tuning-xxxxx    ml-training-queue   True       5m    ← Now admitted!
+NAME                                  QUEUE               RESERVED IN     ADMITTED   FINISHED   AGE
+job-job-finetune-llm-xxxxx           ml-training-queue   cluster-total   True                  5m    ← Still running
+job-job-hyperparameter-tuning-xxxxx  ml-training-queue   cluster-total   True       True       5m    ← Completed!
+job-job-train-resnet-model-xxxxx     ml-training-queue   cluster-total   True                  5m    ← Now admitted and running!
 ```
+
+All jobs have now been admitted. The Hyperparameter job finished first, releasing resources for the ResNet job to be admitted.
 
 ---
 
