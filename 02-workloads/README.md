@@ -403,7 +403,7 @@ job-batch-customer-inference   Running   0/1           2s         2s
 
 ```bash
 # Monitor workloads across both namespaces
-oc get workload -A
+oc get workload -n ml-inference -n ml-training
 ```
 
 Expected output:
@@ -661,7 +661,7 @@ Kueue creates a Workload object for each Job to manage admission:
 
 ```bash
 # List workloads across both namespaces
-oc get workload -A
+oc get workload -n ml-inference -n ml-training
 
 # Describe a specific workload
 oc describe workload -n ml-training <workload-name>
@@ -693,7 +693,7 @@ oc delete jobs --all -n ml-inference
 
 ```bash
 # Terminal 1: Monitor overall status
-watch -n 2 "oc get workload -A && echo '' && oc get clusterqueue"
+watch -n 2 "oc get workload -n ml-inference -n ml-training && echo '' && oc get clusterqueue"
 
 # Terminal 2: Submit all training jobs
 oc apply -f ml-training/
