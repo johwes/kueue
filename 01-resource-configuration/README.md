@@ -39,7 +39,7 @@ In this module, you'll create:
 ResourceFlavor (default-flavor)
          ↓
 ClusterQueue (gpu-cluster-total)
-    ├── Total: 10 CPUs, 20Gi memory
+    ├── Total: 5 CPUs, 2Gi memory
     │   (In production: GPUs would be managed here)
     │
     ├──→ LocalQueue (ml-training-queue)
@@ -100,8 +100,8 @@ oc apply -f clusterqueue.yaml
 **clusterqueue.yaml** defines:
 - Name: `cluster-total`
 - Resource limits:
-  - CPU: 10 cores
-  - Memory: 20Gi
+  - CPU: 5 cores (primary resource for queueing demonstration)
+  - Memory: 2Gi (kept minimal for cost efficiency at scale)
 - Uses ResourceFlavor: `default-flavor`
 - Preemption: Enabled with `LowerPriority` policy
 
@@ -187,8 +187,8 @@ Kueue doesn't "pre-allocate" resources to each LocalQueue. Instead:
 ### Example Scenario: Production vs. Training
 
 **Scenario 1: Training Saturates the Cluster**
-If ML training team submits 5 large model training jobs (15 CPUs total) when only 10 CPUs are available:
-1. First 10 CPUs worth of training jobs are admitted
+If ML training team submits multiple training jobs (6 CPUs total) when only 5 CPUs are available:
+1. First 5 CPUs worth of training jobs are admitted
 2. Remaining training jobs wait in queue
 3. When production inference job arrives, Kueue admits it fairly
 4. Resources are balanced between production and training needs

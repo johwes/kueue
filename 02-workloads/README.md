@@ -10,9 +10,9 @@ Your organization runs all ML workloads on a shared GPU cluster due to the high 
 **Goal**: Train and improve ML models through experimentation
 
 **Workloads**:
-- `job-train-resnet-model.yaml` - Training ResNet-50 for image classification (2 CPU, 4Gi memory)
-- `job-finetune-llm.yaml` - Fine-tuning a large language model (3 CPU, 6Gi memory)
-- `job-hyperparameter-tuning.yaml` - Running hyperparameter optimization (1 CPU, 2Gi memory)
+- `job-train-resnet-model.yaml` - Training ResNet-50 for image classification (2 CPU, 256Mi memory)
+- `job-finetune-llm.yaml` - Fine-tuning a large language model (3 CPU, 512Mi memory)
+- `job-hyperparameter-tuning.yaml` - Running hyperparameter optimization (1 CPU, 128Mi memory)
 
 **Characteristics**:
 - Unpredictable submission times
@@ -24,9 +24,9 @@ Your organization runs all ML workloads on a shared GPU cluster due to the high 
 **Goal**: Serve customer-facing ML predictions with SLA guarantees
 
 **Workloads**:
-- `job-batch-customer-inference.yaml` - Production batch predictions for customers (1 CPU, 2Gi memory)
-- `job-model-validation.yaml` - Pre-production model validation (2 CPU, 3Gi memory)
-- `job-feature-extraction.yaml` - Batch embedding generation (1 CPU, 1Gi memory)
+- `job-batch-customer-inference.yaml` - Production batch predictions for customers (1 CPU, 256Mi memory)
+- `job-model-validation.yaml` - Pre-production model validation (2 CPU, 256Mi memory)
+- `job-feature-extraction.yaml` - Batch embedding generation (1 CPU, 128Mi memory)
 
 **Characteristics**:
 - Predictable, scheduled submission
@@ -106,30 +106,218 @@ spec:
 
 ## Demo Scenario 1: Training Fills the Cluster
 
-Simulate the ML training team submitting multiple experiments:
+This scenario demonstrates **queueing in action**. The cluster has only 5 CPUs available, but we'll submit 3 training jobs requesting 6 CPUs total (2+3+1). This forces at least one job to wait in queue.
+
+### Resource Math
+- **Available quota**: 5 CPUs, 2Gi memory
+- **Training jobs requesting**:
+  - ResNet training: 2 CPU, 256Mi
+  - LLM fine-tuning: 3 CPU, 512Mi
+  - Hyperparameter tuning: 1 CPU, 128Mi
+  - **Total**: 6 CPU, 896Mi (CPU exceeds quota!)
+
+### Step-by-Step Walkthrough
+
+**Step 1: Check initial cluster state (before submitting jobs)**
 
 ```bash
-# Submit all training workloads
-oc apply -f ml-training/
+# Verify the cluster queue is empty
+oc get clusterqueue cluster-total
 
-# Watch workloads being admitted
-watch -n 2 "oc get workload -n ml-training"
-
-# Watch jobs starting
-watch -n 2 "oc get jobs -n ml-training"
-
-# Check cluster queue utilization
-oc describe clusterqueue cluster-total
+# Check resource availability
+oc get clusterqueue cluster-total -o jsonpath='{.spec.resourceGroups[0].flavors[0].resources}' | jq
 ```
 
-**Expected Behavior**:
-1. Jobs create Workload objects automatically
-2. Kueue evaluates each workload against available quota
-3. First jobs admitted until quota exhausted (e.g., 10 CPUs used)
-4. Additional jobs queue and wait
-5. As jobs complete, queued workloads are admitted
+Expected output:
+```
+NAME            COHORT   PENDING WORKLOADS   ADMITTED WORKLOADS
+cluster-total            0                   0
+```
 
-**Observation**: Training jobs use all available resources but don't exceed quota.
+This shows the cluster is ready with no workloads.
+
+---
+
+**Step 2: Submit all training jobs at once**
+
+```bash
+# Submit all 3 training jobs
+oc apply -f ml-training/
+
+# Immediately check what jobs were created
+oc get jobs -n ml-training
+```
+
+Expected output:
+```
+NAME                          COMPLETIONS   DURATION   AGE
+job-finetune-llm              0/1                      5s
+job-hyperparameter-tuning     0/1                      5s
+job-train-resnet-model        0/1                      5s
+```
+
+Notice: All jobs are created with **COMPLETIONS 0/1** and remain suspended.
+
+---
+
+**Step 3: Check Workload objects (Kueue's admission control)**
+
+```bash
+# List all workloads in ml-training namespace
+oc get workload -n ml-training
+```
+
+Expected output (wait ~10 seconds after job creation):
+```
+NAME                                     QUEUE               ADMITTED   AGE
+job-finetune-llm-xxxxx                  ml-training-queue   True       20s
+job-train-resnet-model-xxxxx            ml-training-queue   True       20s
+job-hyperparameter-tuning-xxxxx         ml-training-queue   False      20s
+```
+
+**KEY OBSERVATION**:
+- ✅ **2 jobs ADMITTED** (ResNet + LLM = 5 CPUs, 10Gi - exactly fills quota!)
+- ⏳ **1 job PENDING** (Hyperparameter tuning waiting for resources)
+
+---
+
+**Step 4: Verify which jobs are actually running**
+
+```bash
+# Check job status
+oc get jobs -n ml-training
+
+# Check if pods are running for admitted jobs
+oc get pods -n ml-training
+```
+
+Expected output:
+```
+NAME                          COMPLETIONS   DURATION   AGE
+job-finetune-llm              0/1           30s        1m
+job-train-resnet-model        0/1           30s        1m
+job-hyperparameter-tuning     0/1                      1m    ← Still suspended!
+```
+
+You should see pods running for ResNet and LLM jobs, but NO pods for hyperparameter-tuning because it's still queued.
+
+---
+
+**Step 5: Check ClusterQueue utilization**
+
+```bash
+# Show detailed resource usage
+oc get clusterqueue cluster-total -o json | jq '.status.flavorsReservation[0].resources'
+```
+
+Expected output:
+```json
+[
+  {
+    "name": "cpu",
+    "total": "5",
+    "borrowed": "0",
+    "used": "5"        ← CPU quota fully utilized!
+  },
+  {
+    "name": "memory",
+    "total": "2Gi",
+    "borrowed": "0",
+    "used": "768Mi"    ← Memory usage (minimal for demo cost-efficiency)
+  }
+]
+```
+
+**This proves**: The cluster CPU quota is at capacity - no resources available for the queued job.
+
+---
+
+**Step 6: Describe the queued workload to see why it's waiting**
+
+```bash
+# Find the pending workload name
+PENDING_WORKLOAD=$(oc get workload -n ml-training -o json | jq -r '.items[] | select(.status.admission == null) | .metadata.name')
+
+# Describe it to see the reason
+oc describe workload -n ml-training $PENDING_WORKLOAD
+```
+
+Look for the **Conditions** section:
+```
+Conditions:
+  Type:                QuotaReserved
+  Status:              False
+  Reason:              Pending
+  Message:             couldn't assign flavors to pod set main: insufficient quota...
+```
+
+**This explains**: The workload is waiting because there's no quota available.
+
+---
+
+**Step 7: Watch the queue admission when a job completes**
+
+Open a monitoring window:
+```bash
+# In Terminal 1: Watch workloads
+watch -n 2 "oc get workload -n ml-training"
+
+# In Terminal 2: Watch the ClusterQueue
+watch -n 2 "oc get clusterqueue cluster-total"
+```
+
+**Wait for one of the running jobs to complete** (~2-3 minutes for these demo jobs).
+
+**What you'll observe**:
+1. When ResNet job completes → resources released (5 CPUs → 3 CPUs used)
+2. Queued hyperparameter job immediately admitted (3 CPUs → 4 CPUs used)
+3. The queued job transitions from `ADMITTED=False` to `ADMITTED=True`
+4. Pods start for the previously queued job
+
+---
+
+**Step 8: Verify the lifecycle**
+
+```bash
+# Check final status of all workloads
+oc get workload -n ml-training
+
+# Check which jobs completed
+oc get jobs -n ml-training
+```
+
+Expected progression:
+```
+NAME                                QUEUE               ADMITTED   AGE
+job-train-resnet-model-xxxxx       ml-training-queue   True       5m    ← Completed
+job-finetune-llm-xxxxx             ml-training-queue   True       5m    ← Still running
+job-hyperparameter-tuning-xxxxx    ml-training-queue   True       5m    ← Now admitted!
+```
+
+---
+
+### What You Just Learned
+
+✅ **Queueing in action**: When quota is exhausted, jobs wait in queue
+✅ **Automatic admission**: As resources free up, queued jobs are automatically admitted
+✅ **Resource accounting**: Kueue tracks exactly how much quota is used
+✅ **Transparency**: You can see why jobs are pending and when they'll be admitted
+
+### Key Commands Summary
+
+```bash
+# See which jobs are admitted vs pending
+oc get workload -n ml-training
+
+# Check cluster capacity and usage
+oc get clusterqueue cluster-total -o json | jq '.status.flavorsReservation'
+
+# See why a workload is pending
+oc describe workload -n ml-training <workload-name>
+
+# Monitor in real-time
+watch -n 2 "oc get workload -n ml-training"
+```
 
 ## Demo Scenario 2: Production Needs Guaranteed Access
 
@@ -220,11 +408,13 @@ oc apply -f ml-inference/
 ```
 
 **Observations**:
-- Total cluster quota: 10 CPUs
-- Both queues compete for the same resources
+- Total cluster quota: 5 CPUs, 2Gi memory
+- Both queues compete for the same resources (CPU is the limiting factor)
 - Kueue ensures fair distribution
 - Neither queue is completely starved
 - Resources are allocated dynamically as jobs complete
+
+**Note**: Memory requests are kept minimal (128Mi-512Mi) for cost efficiency at scale. CPU quota is the primary resource being demonstrated.
 
 ## Production vs. Training Priority (Advanced)
 
