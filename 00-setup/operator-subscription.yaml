@@ -10,8 +10,19 @@ metadata:
   name: kueue-operator
   namespace: openshift-operators
 spec:
-  channel: stable
+  channel: stable-v1.3
   installPlanApproval: Automatic
   name: kueue-operator
   source: redhat-operators
   sourceNamespace: openshift-marketplace
+---
+apiVersion: kueue.openshift.io/v1
+kind: Kueue
+metadata:
+  name: cluster
+spec:
+  config:
+    integrations:
+      frameworks:
+      - BatchJob
+  managementState: Managed

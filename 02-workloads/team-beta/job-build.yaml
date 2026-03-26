@@ -8,6 +8,7 @@ metadata:
     kueue.x-k8s.io/queue-name: team-beta-queue
     app: build
 spec:
+  suspend: true
   template:
     metadata:
       labels:

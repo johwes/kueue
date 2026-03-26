@@ -5,8 +5,9 @@ metadata:
   name: team-beta
   labels:
     team: beta
+    kueue.openshift.io/managed: "true"
 ---
-apiVersion: kueue.x-k8s.io/v1beta1
+apiVersion: kueue.x-k8s.io/v1beta2
 kind: LocalQueue
 metadata:
   name: team-beta-queue

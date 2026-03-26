@@ -8,6 +8,7 @@ metadata:
     kueue.x-k8s.io/queue-name: team-alpha-queue
     app: batch-analysis
 spec:
+  suspend: true
   template:
     metadata:
       labels:
