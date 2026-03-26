@@ -1,4 +1,4 @@
-# Module 02: Workloads
+# Module 02: Workload Kueue Basics
 
 This module demonstrates the real-world scenario: **ML training experiments competing with production inference workloads for shared GPU resources**.
 
@@ -104,7 +104,169 @@ spec:
 2. **Suspend**: `suspend: true` lets Kueue control admission
 3. **Resource Requests**: Required for Kueue to calculate quota usage
 
-## Demo Scenario 1: Training Fills the Cluster
+## Demo Scenario 1: Understanding the Job Lifecycle
+
+This scenario follows a **single job** through its complete lifecycle from creation to completion, showing every state transition.
+
+### Step-by-Step Walkthrough
+
+**Step 1: Clean up and start fresh**
+
+```bash
+# Delete any existing jobs
+oc delete jobs --all -n ml-training
+
+# Verify clean state
+oc get workload -n ml-training
+```
+
+Expected: No workloads found.
+
+---
+
+**Step 2: Submit a single job and watch the lifecycle**
+
+Open **three terminals** to observe different aspects:
+
+**Terminal 1 - Watch Workload status**:
+```bash
+oc get workload -n ml-training -w
+```
+
+**Terminal 2 - Watch Job status**:
+```bash
+oc get job -n ml-training -w
+```
+
+**Terminal 3 - Submit the job**:
+```bash
+oc apply -f ml-training/job-hyperparameter-tuning.yaml
+```
+
+---
+
+**Step 3: Observe the lifecycle progression**
+
+**Terminal 1 (Workload)** - You'll see:
+```
+NAME                                  QUEUE               RESERVED IN     ADMITTED   FINISHED   AGE
+job-job-hyperparameter-tuning-xxxxx  ml-training-queue   cluster-total   True                  0s
+                                                                         ^^^^
+                                                                         Immediately admitted!
+```
+
+**Terminal 2 (Job)** - You'll see:
+```
+NAME                        STATUS      COMPLETIONS   DURATION   AGE
+job-hyperparameter-tuning   Running     0/1           2s         3s
+                            ^^^^^^^
+                            Started running immediately
+```
+
+After ~60 seconds:
+```
+NAME                        STATUS     COMPLETIONS   DURATION   AGE
+job-hyperparameter-tuning   Complete   1/1           60s        62s
+                            ^^^^^^^^
+                            Job finished!
+```
+
+**Terminal 1 (Workload)** - Final state:
+```
+NAME                                  QUEUE               RESERVED IN     ADMITTED   FINISHED   AGE
+job-job-hyperparameter-tuning-xxxxx  ml-training-queue   cluster-total   True       True       65s
+                                                                                    ^^^^
+                                                                                    Marked finished
+```
+
+---
+
+**Step 4: View job logs**
+
+```bash
+# Follow logs as job runs (run this right after submitting job)
+oc logs -n ml-training -l app=hyperparameter-tuning -f
+```
+
+You'll see the job's output:
+```
+==========================================
+ML Experimentation: Hyperparameter Tuning
+==========================================
+Job: job-hyperparameter-tuning-xxxxx-xxxxx
+Started: Wed Mar 26 11:30:00 UTC 2026
+
+Search space: learning_rate, batch_size, dropout
+Running Bayesian optimization...
+
+Trial 1/6 - lr=0.001, batch=32, dropout=0.2 → val_acc=0.68
+Trial 2/6 - lr=0.005, batch=64, dropout=0.3 → val_acc=0.71
+Trial 3/6 - lr=0.002, batch=32, dropout=0.1 → val_acc=0.74
+
+Best configuration found:
+  Learning rate: 0.002
+  Batch size: 32
+  Dropout: 0.1
+  Validation accuracy: 74.2%
+
+Saving results to experiment tracking...
+Hyperparameter tuning complete: Wed Mar 26 11:31:00 UTC 2026
+==========================================
+```
+
+---
+
+### Lifecycle Stages Observed
+
+1. **Job Created** (suspend: true) → Workload object created automatically
+2. **Workload Evaluated** → Kueue checks quota availability
+3. **Workload Admitted** → Resources available, quota reserved
+4. **Job Unsuspended** → Job transitions from Suspended → Running
+5. **Pods Created** → Kubernetes creates pods for the job
+6. **Pods Running** → Containers execute the workload
+7. **Job Complete** → All pods finish successfully
+8. **Workload Finished** → Workload marked as finished, resources released
+
+**Total time**: ~60 seconds for this job.
+
+---
+
+### What You Just Learned
+
+✅ **Automatic workload creation**: Kueue creates Workload objects for every Job
+
+✅ **Instant admission**: When quota is available, jobs are admitted in < 1 second
+
+✅ **Seamless integration**: Jobs run normally once admitted - no changes to pod behavior
+
+✅ **Resource cleanup**: When jobs complete, resources are immediately released for other workloads
+
+✅ **Observable lifecycle**: Every state is visible through kubectl/oc commands
+
+## Understanding Workload Objects
+
+Kueue creates a Workload object for each Job to manage admission:
+
+```bash
+# List workloads across both namespaces
+oc get workload -n ml-inference -n ml-training
+
+# Describe a specific workload
+oc describe workload -n ml-training <workload-name>
+```
+
+**Key Fields**:
+- **spec.queueName**: Which LocalQueue this workload belongs to
+- **spec.podSets**: Resource requests for the job
+- **status.admission**: If admitted, shows assigned resources
+- **status.conditions**: Admission status and reasons
+
+Example:
+```bash
+oc get workload -n ml-training job-job-train-resnet-model-xxxxx -o yaml
+```
+
+## Demo Scenario 2: Queueing When Resources Are Exhausted
 
 This scenario demonstrates **queueing in action**. The cluster has only 5 CPUs available, but we'll submit 3 training jobs requesting 6 CPUs total (2+3+1). This forces at least one job to wait in queue.
 
@@ -328,7 +490,7 @@ oc describe workload -n ml-training <workload-name>
 watch -n 2 "oc get workload -n ml-training"
 ```
 
-## Demo Scenario 2: Fair Sharing Between Training and Production
+## Demo Scenario 3: Fair Sharing Between Teams
 
 This scenario demonstrates **fair resource sharing** when both training and production workloads compete for the same cluster resources. You'll see how Kueue ensures both teams get their fair share, preventing production starvation.
 
@@ -338,7 +500,7 @@ Training experiments are running and have saturated the cluster. A production in
 
 ### Step-by-Step Walkthrough
 
-**Step 1: Clean up from Demo 1 (if needed)**
+**Step 1: Clean up from Demo 2 (if needed)**
 
 ```bash
 # Delete any existing jobs from previous demos
@@ -516,249 +678,6 @@ Expected output (when all 3 jobs running initially):
 
 **With Kueue**: Resources are automatically shared fairly. Production gets guaranteed access while training experiments still make progress.
 
-## Demo Scenario 3: Complete Lifecycle
-
-This scenario follows a **single job** through its complete lifecycle from creation to completion, showing every state transition.
-
-### Step-by-Step Walkthrough
-
-**Step 1: Clean up and start fresh**
-
-```bash
-# Delete any existing jobs
-oc delete jobs --all -n ml-training
-
-# Verify clean state
-oc get workload -n ml-training
-```
-
-Expected: No workloads found.
-
----
-
-**Step 2: Submit a single job and watch the lifecycle**
-
-Open **three terminals** to observe different aspects:
-
-**Terminal 1 - Watch Workload status**:
-```bash
-oc get workload -n ml-training -w
-```
-
-**Terminal 2 - Watch Job status**:
-```bash
-oc get job -n ml-training -w
-```
-
-**Terminal 3 - Submit the job**:
-```bash
-oc apply -f ml-training/job-hyperparameter-tuning.yaml
-```
-
----
-
-**Step 3: Observe the lifecycle progression**
-
-**Terminal 1 (Workload)** - You'll see:
-```
-NAME                                  QUEUE               RESERVED IN     ADMITTED   FINISHED   AGE
-job-job-hyperparameter-tuning-xxxxx  ml-training-queue   cluster-total   True                  0s
-                                                                         ^^^^
-                                                                         Immediately admitted!
-```
-
-**Terminal 2 (Job)** - You'll see:
-```
-NAME                        STATUS      COMPLETIONS   DURATION   AGE
-job-hyperparameter-tuning   Running     0/1           2s         3s
-                            ^^^^^^^
-                            Started running immediately
-```
-
-After ~60 seconds:
-```
-NAME                        STATUS     COMPLETIONS   DURATION   AGE
-job-hyperparameter-tuning   Complete   1/1           60s        62s
-                            ^^^^^^^^
-                            Job finished!
-```
-
-**Terminal 1 (Workload)** - Final state:
-```
-NAME                                  QUEUE               RESERVED IN     ADMITTED   FINISHED   AGE
-job-job-hyperparameter-tuning-xxxxx  ml-training-queue   cluster-total   True       True       65s
-                                                                                    ^^^^
-                                                                                    Marked finished
-```
-
----
-
-**Step 4: View job logs**
-
-```bash
-# Follow logs as job runs (run this right after submitting job)
-oc logs -n ml-training -l app=hyperparameter-tuning -f
-```
-
-You'll see the job's output:
-```
-==========================================
-ML Experimentation: Hyperparameter Tuning
-==========================================
-Job: job-hyperparameter-tuning-xxxxx-xxxxx
-Started: Wed Mar 26 11:30:00 UTC 2026
-
-Search space: learning_rate, batch_size, dropout
-Running Bayesian optimization...
-
-Trial 1/6 - lr=0.001, batch=32, dropout=0.2 → val_acc=0.68
-Trial 2/6 - lr=0.005, batch=64, dropout=0.3 → val_acc=0.71
-Trial 3/6 - lr=0.002, batch=32, dropout=0.1 → val_acc=0.74
-
-Best configuration found:
-  Learning rate: 0.002
-  Batch size: 32
-  Dropout: 0.1
-  Validation accuracy: 74.2%
-
-Saving results to experiment tracking...
-Hyperparameter tuning complete: Wed Mar 26 11:31:00 UTC 2026
-==========================================
-```
-
----
-
-### Lifecycle Stages Observed
-
-1. **Job Created** (suspend: true) → Workload object created automatically
-2. **Workload Evaluated** → Kueue checks quota availability
-3. **Workload Admitted** → Resources available, quota reserved
-4. **Job Unsuspended** → Job transitions from Suspended → Running
-5. **Pods Created** → Kubernetes creates pods for the job
-6. **Pods Running** → Containers execute the workload
-7. **Job Complete** → All pods finish successfully
-8. **Workload Finished** → Workload marked as finished, resources released
-
-**Total time**: ~60 seconds for this job.
-
----
-
-### What You Just Learned
-
-✅ **Automatic workload creation**: Kueue creates Workload objects for every Job
-
-✅ **Instant admission**: When quota is available, jobs are admitted in < 1 second
-
-✅ **Seamless integration**: Jobs run normally once admitted - no changes to pod behavior
-
-✅ **Resource cleanup**: When jobs complete, resources are immediately released for other workloads
-
-✅ **Observable lifecycle**: Every state is visible through kubectl/oc commands
-
-## Understanding Workload Objects
-
-Kueue creates a Workload object for each Job to manage admission:
-
-```bash
-# List workloads across both namespaces
-oc get workload -n ml-inference -n ml-training
-
-# Describe a specific workload
-oc describe workload -n ml-training <workload-name>
-```
-
-**Key Fields**:
-- **spec.queueName**: Which LocalQueue this workload belongs to
-- **spec.podSets**: Resource requests for the job
-- **status.admission**: If admitted, shows assigned resources
-- **status.conditions**: Admission status and reasons
-
-Example:
-```bash
-oc get workload -n ml-training job-job-train-resnet-model-xxxxx -o yaml
-```
-
-## Demonstrating Fair Sharing
-
-To see fair sharing in action, saturate both queues simultaneously:
-
-**Setup: Clean up first**
-```bash
-# Delete any existing jobs
-oc delete jobs --all -n ml-training
-oc delete jobs --all -n ml-inference
-```
-
-**Demo: Saturate both queues**
-
-```bash
-# Terminal 1: Monitor overall status
-watch -n 2 "oc get workload -n ml-inference -n ml-training && echo '' && oc get clusterqueue"
-
-# Terminal 2: Submit all training jobs
-oc apply -f ml-training/
-
-# Terminal 3: Submit all inference jobs
-oc apply -f ml-inference/
-```
-
-**What you'll observe**:
-- Total cluster quota: 5 CPUs, 2Gi memory
-- Training jobs: 6 CPUs requested (2+3+1)
-- Inference jobs: 4 CPUs requested (1+2+1)
-- **Total requested**: 10 CPUs (twice the quota!)
-- **Kueue admits**: ~5 CPUs worth of jobs from both queues
-- Both queues compete for the same resources (CPU is the limiting factor)
-- Kueue ensures fair distribution between queues
-- Neither queue is completely starved
-- Resources are allocated dynamically as jobs complete
-- As training jobs finish, both training and inference queued jobs get admitted fairly
-
-**Expected state after submission**:
-```
-NAMESPACE      NAME                               ADMITTED
-ml-training    job-job-finetune-llm-xxxxx        True      (3 CPU)
-ml-training    job-job-hyperparameter-tuning-x   True      (1 CPU)
-ml-training    job-job-train-resnet-model-x                 (queued, needs 2 CPU)
-ml-inference   job-job-batch-customer-inference-x           (queued, needs 1 CPU)
-ml-inference   job-job-model-validation-xxxxx                (queued, needs 2 CPU)
-ml-inference   job-job-feature-extraction-xxxxx             (queued, needs 1 CPU)
-```
-
-4 CPUs admitted, 6 CPUs worth of jobs waiting. Fair sharing ensures both queues get resources as they become available.
-
-**Note**: Memory requests are kept minimal (128Mi-512Mi) for cost efficiency at scale. CPU quota is the primary resource being demonstrated.
-
-## Production vs. Training Priority (Advanced)
-
-For production SLA guarantees, you can configure priority:
-
-**Step 1**: Create WorkloadPriorityClasses (not included in basic demo):
-```yaml
-apiVersion: kueue.x-k8s.io/v1beta2
-kind: WorkloadPriorityClass
-metadata:
-  name: production-critical
-spec:
-  value: 1000
----
-apiVersion: kueue.x-k8s.io/v1beta2
-kind: WorkloadPriorityClass
-metadata:
-  name: training-experimental
-spec:
-  value: 100
-```
-
-**Step 2**: Reference in jobs:
-```yaml
-metadata:
-  labels:
-    kueue.x-k8s.io/priority-class: production-critical
-```
-
-**Result**: Production jobs can preempt lower-priority training jobs when necessary.
-
 ## Common Workload States
 
 | Condition | Meaning |
@@ -853,11 +772,11 @@ oc describe job <job-name> -n ml-training
 
 By completing this module, you've seen:
 
-✅ **Real-world ML scenario**: Training vs. production inference competing for GPUs  
-✅ **Fair resource sharing**: Both workload types get their fair share  
-✅ **Queue management**: Automatic admission control without manual intervention  
-✅ **Workload lifecycle**: From creation to admission to completion  
-✅ **Visibility**: Clear view of queue status and resource allocation  
+✅ **Real-world ML scenario**: Training vs. production inference competing for GPUs
+✅ **Fair resource sharing**: Both workload types get their fair share
+✅ **Queue management**: Automatic admission control without manual intervention
+✅ **Workload lifecycle**: From creation to admission to completion
+✅ **Visibility**: Clear view of queue status and resource allocation
 
 ## Next Steps
 
@@ -869,5 +788,5 @@ Proceed to [03-monitoring](../03-monitoring/README.md) to learn:
 
 ## Key Takeaway
 
-**Before Kueue**: Manual intervention required to prevent training from starving production.  
+**Before Kueue**: Manual intervention required to prevent training from starving production.
 **With Kueue**: Automatic fair sharing ensures both innovation (training) and reliability (production) coexist.

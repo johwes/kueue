@@ -243,7 +243,7 @@ oc get resourceflavor
 
 ## Next Steps
 
-Now that your resource configuration is complete, proceed to [02-workloads](../02-workloads/README.md) to submit sample jobs and see Kueue in action!
+Now that your resource configuration is complete, proceed to [02-workload-kueue-basics](../02-workload-kueue-basics/README.md) to submit sample jobs and see Kueue in action!
 
 ## Additional Resources
 

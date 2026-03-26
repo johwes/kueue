@@ -110,8 +110,8 @@ Follow these modules in order:
 ### [01-resource-configuration](./01-resource-configuration/README.md)
 **Resource Management Setup** - Create ResourceFlavors, ClusterQueues, and LocalQueues to allocate resources between ML training and inference workloads.
 
-### [02-workloads](./02-workloads/README.md)
-**Workload Submission** - Submit realistic ML training and inference jobs to observe queue admission, fair sharing, and priority handling.
+### [02-workload-kueue-basics](./02-workload-kueue-basics/README.md)
+**Kueue Basics - Workload Submission** - Submit realistic ML training and inference jobs to observe queue admission, fair sharing, and priority handling.
 
 ### [03-monitoring](./03-monitoring/README.md)
 **Observability & Success Metrics** - Monitor queues, track resource utilization, and verify that production workloads are never starved.
@@ -128,7 +128,7 @@ cd ../01-resource-configuration
 oc apply -f .
 
 # 3. Submit ML training and inference workloads
-cd ../02-workloads
+cd ../02-workload-kueue-basics
 oc apply -f ml-training/
 oc apply -f ml-inference/
 
