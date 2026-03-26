@@ -122,7 +122,7 @@ This scenario demonstrates **queueing in action**. The cluster has only 5 CPUs a
 
 ```bash
 # Verify the cluster queue is empty
-oc get clusterqueue cluster-total
+oc get clusterqueue cluster-total -o wide
 
 # Check resource availability
 oc get clusterqueue cluster-total -o jsonpath='{.spec.resourceGroups[0].flavors[0].resources}' | jq
@@ -130,8 +130,8 @@ oc get clusterqueue cluster-total -o jsonpath='{.spec.resourceGroups[0].flavors[
 
 Expected output:
 ```
-NAME            COHORT   PENDING WORKLOADS
-cluster-total            0
+NAME            COHORT   STRATEGY         PENDING WORKLOADS   ADMITTED WORKLOADS
+cluster-total            BestEffortFIFO   0                   0
 ```
 
 This shows the cluster is ready with no pending workloads.
