@@ -880,16 +880,16 @@ Beyond the CLI commands you've been using, you can visualize Kueue metrics in th
 - Queue depth trends
 - Workload admission latency
 
-**CLI alternative:** You can also query Prometheus metrics directly:
+**CLI alternative:** You can also verify metrics collection:
 ```bash
-# Check if Kueue metrics are being collected
-oc get servicemonitor -n kueue-system
+# Check if Kueue metrics ServiceMonitor exists
+oc get servicemonitor -n openshift-operators kueue-metrics
 
-# Example: Query pending workloads
-oc exec -n openshift-monitoring prometheus-k8s-0 -- \
-  promtool query instant http://localhost:9090 \
-  'kueue_pending_workloads{cluster_queue="cluster-total"}'
+# View ServiceMonitor configuration
+oc describe servicemonitor -n openshift-operators kueue-metrics
 ```
+
+**Note:** Kueue metrics collection is automatically configured when using the Red Hat Build of Kueue operator. The ServiceMonitor is created in the `openshift-operators` namespace and Prometheus scrapes metrics every 30 seconds.
 
 ### Integration with Red Hat OpenShift AI (RHOAI)
 
