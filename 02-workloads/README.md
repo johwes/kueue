@@ -429,10 +429,10 @@ ml-training    job-job-train-resnet-model-xxxxx          ml-training-queue      
 
 ```bash
 # Watch as jobs complete and resources are redistributed
-watch -n 2 "oc get workload -A"
+watch -n 2 "oc get workload -n ml-inference -n ml-training"
 
 # In another terminal, watch the jobs
-watch -n 2 "oc get jobs -A"
+watch -n 2 "oc get jobs -n ml-inference -n ml-training"
 ```
 
 **What you'll observe** (wait ~60 seconds):
