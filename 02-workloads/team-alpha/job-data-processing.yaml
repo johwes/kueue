@@ -1,0 +1,45 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: job-data-processing
+  namespace: team-alpha
+  labels:
+    kueue.x-k8s.io/queue-name: team-alpha-queue
+    app: data-processing
+spec:
+  template:
+    metadata:
+      labels:
+        app: data-processing
+    spec:
+      containers:
+      - name: worker
+        image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+        command: ["sh", "-c"]
+        args:
+        - |
+          echo "=========================================="
+          echo "Data Processing Job - Team Alpha"
+          echo "=========================================="
+          echo "Job: $HOSTNAME"
+          echo "Started: $(date)"
+          echo ""
+          echo "Processing data batch 1/3..."
+          sleep 20
+          echo "Processing data batch 2/3..."
+          sleep 20
+          echo "Processing data batch 3/3..."
+          sleep 20
+          echo ""
+          echo "Completed: $(date)"
+          echo "=========================================="
+        resources:
+          requests:
+            cpu: "2"
+            memory: "4Gi"
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+      restartPolicy: Never
+  backoffLimit: 2

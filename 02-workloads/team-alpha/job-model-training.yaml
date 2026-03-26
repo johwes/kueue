@@ -1,0 +1,54 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: job-model-training
+  namespace: team-alpha
+  labels:
+    kueue.x-k8s.io/queue-name: team-alpha-queue
+    app: model-training
+spec:
+  template:
+    metadata:
+      labels:
+        app: model-training
+    spec:
+      containers:
+      - name: worker
+        image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+        command: ["sh", "-c"]
+        args:
+        - |
+          echo "=========================================="
+          echo "Model Training Job - Team Alpha"
+          echo "=========================================="
+          echo "Job: $HOSTNAME"
+          echo "Started: $(date)"
+          echo ""
+          echo "Loading training data..."
+          sleep 15
+          echo "Training epoch 1/5..."
+          sleep 15
+          echo "Training epoch 2/5..."
+          sleep 15
+          echo "Training epoch 3/5..."
+          sleep 15
+          echo "Training epoch 4/5..."
+          sleep 15
+          echo "Training epoch 5/5..."
+          sleep 15
+          echo "Saving model..."
+          sleep 10
+          echo ""
+          echo "Training complete!"
+          echo "Completed: $(date)"
+          echo "=========================================="
+        resources:
+          requests:
+            cpu: "3"
+            memory: "6Gi"
+          limits:
+            cpu: "3"
+            memory: "6Gi"
+      restartPolicy: Never
+  backoffLimit: 2

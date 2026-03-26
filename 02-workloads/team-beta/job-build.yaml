@@ -1,0 +1,48 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: job-build
+  namespace: team-beta
+  labels:
+    kueue.x-k8s.io/queue-name: team-beta-queue
+    app: build
+spec:
+  template:
+    metadata:
+      labels:
+        app: build
+    spec:
+      containers:
+      - name: worker
+        image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+        command: ["sh", "-c"]
+        args:
+        - |
+          echo "=========================================="
+          echo "Build Job - Team Beta"
+          echo "=========================================="
+          echo "Job: $HOSTNAME"
+          echo "Started: $(date)"
+          echo ""
+          echo "Downloading dependencies..."
+          sleep 15
+          echo "Compiling source code..."
+          sleep 25
+          echo "Running unit tests..."
+          sleep 20
+          echo "Creating artifacts..."
+          sleep 10
+          echo ""
+          echo "Build successful!"
+          echo "Completed: $(date)"
+          echo "=========================================="
+        resources:
+          requests:
+            cpu: "2"
+            memory: "3Gi"
+          limits:
+            cpu: "2"
+            memory: "3Gi"
+      restartPolicy: Never
+  backoffLimit: 2

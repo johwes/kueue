@@ -1,0 +1,46 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: job-validation
+  namespace: team-beta
+  labels:
+    kueue.x-k8s.io/queue-name: team-beta-queue
+    app: validation
+spec:
+  template:
+    metadata:
+      labels:
+        app: validation
+    spec:
+      containers:
+      - name: worker
+        image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+        command: ["sh", "-c"]
+        args:
+        - |
+          echo "=========================================="
+          echo "Validation Job - Team Beta"
+          echo "=========================================="
+          echo "Job: $HOSTNAME"
+          echo "Started: $(date)"
+          echo ""
+          echo "Validating configuration..."
+          sleep 12
+          echo "Checking dependencies..."
+          sleep 12
+          echo "Verifying outputs..."
+          sleep 12
+          echo ""
+          echo "Validation complete!"
+          echo "Completed: $(date)"
+          echo "=========================================="
+        resources:
+          requests:
+            cpu: "1"
+            memory: "1Gi"
+          limits:
+            cpu: "1"
+            memory: "1Gi"
+      restartPolicy: Never
+  backoffLimit: 2

@@ -1,0 +1,30 @@
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ClusterQueue
+metadata:
+  name: cluster-total
+spec:
+  # Namespace selector - allows all namespaces to use this ClusterQueue
+  namespaceSelector: {}
+
+  # Resource groups define the resources available in this queue
+  resourceGroups:
+  - coveredResources: ["cpu", "memory"]
+    flavors:
+    - name: default-flavor
+      resources:
+      - name: "cpu"
+        nominalQuota: 10      # 10 CPU cores available
+      - name: "memory"
+        nominalQuota: 20Gi    # 20 GiB memory available
+
+  # Preemption policy - allows higher priority workloads to preempt lower priority ones
+  preemption:
+    reclaimWithinCohort: Any
+    withinClusterQueue: LowerPriority
+
+  # Fair sharing configuration
+  fairSharing:
+    enable: true
+    # Weight determines priority when multiple queues compete for resources
+    # Higher weight = higher priority when resources are limited

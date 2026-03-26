@@ -1,0 +1,8 @@
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ResourceFlavor
+metadata:
+  name: default-flavor
+# ResourceFlavor with no node selectors - uses any available nodes
+# In production, you might add nodeLabels or tolerations to target specific node types
+spec: {}

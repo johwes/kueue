@@ -1,0 +1,46 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: job-integration-test
+  namespace: team-beta
+  labels:
+    kueue.x-k8s.io/queue-name: team-beta-queue
+    app: integration-test
+spec:
+  template:
+    metadata:
+      labels:
+        app: integration-test
+    spec:
+      containers:
+      - name: worker
+        image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+        command: ["sh", "-c"]
+        args:
+        - |
+          echo "=========================================="
+          echo "Integration Test Job - Team Beta"
+          echo "=========================================="
+          echo "Job: $HOSTNAME"
+          echo "Started: $(date)"
+          echo ""
+          echo "Setting up test environment..."
+          sleep 10
+          echo "Running integration tests..."
+          sleep 30
+          echo "Cleaning up..."
+          sleep 5
+          echo ""
+          echo "Tests passed!"
+          echo "Completed: $(date)"
+          echo "=========================================="
+        resources:
+          requests:
+            cpu: "1"
+            memory: "2Gi"
+          limits:
+            cpu: "1"
+            memory: "2Gi"
+      restartPolicy: Never
+  backoffLimit: 2
