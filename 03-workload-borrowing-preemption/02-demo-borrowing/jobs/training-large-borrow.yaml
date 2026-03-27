@@ -1,0 +1,82 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: training-large-borrow
+  namespace: ml-training
+  labels:
+    kueue.x-k8s.io/queue-name: ml-training-queue
+    kueue.x-k8s.io/priority-class: low-priority  # Can be preempted if needed
+    app: large-training
+    demo: borrowing
+spec:
+  suspend: true  # Kueue controls admission
+  template:
+    metadata:
+      labels:
+        app: large-training
+    spec:
+      containers:
+      - name: trainer
+        image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+        command: ["sh", "-c"]
+        args:
+        - |
+          echo "=========================================="
+          echo "Large-Scale Training: Borrowing Demo"
+          echo "=========================================="
+          echo "Job: $HOSTNAME"
+          echo "Started: $(date)"
+          echo ""
+          echo "Resource allocation:"
+          echo "- Requested: 5 CPUs, 128Mi memory"
+          echo "- Training queue nominal: 3 CPUs"
+          echo "- Borrowing: 2 CPUs from inference queue"
+          echo ""
+          echo "Training large model with 5 CPUs..."
+          echo ""
+
+          # Simulate large-scale training (10 epochs)
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            LOSS=$(echo "scale=3; 2.5 - ($i * 0.15)" | bc)
+            echo "Epoch $i/10 - Loss: $LOSS - Utilizing borrowed resources"
+            sleep 12
+          done
+
+          echo ""
+          echo "=========================================="
+          echo "Training complete: $(date)"
+          echo "Model saved successfully"
+          echo ""
+          echo "Borrowed resources will be released automatically"
+          echo "Inference queue can reclaim if needed"
+          echo "=========================================="
+
+        resources:
+          requests:
+            # Request 5 CPUs - MORE than training's 3 CPU nominal quota!
+            # This will require borrowing 2 CPUs from inference-cluster-queue
+            cpu: "5"
+
+            # Minimal memory for cost efficiency
+            # At scale (100 users): 128Mi × 100 = 12.8GB total
+            # vs. 1Gi × 100 = 100GB (8x more expensive!)
+            memory: "128Mi"
+
+          limits:
+            cpu: "5"
+            memory: "128Mi"
+
+      restartPolicy: Never
+
+  backoffLimit: 0  # Don't retry on failure
+
+# Expected behavior:
+# 1. Job submitted to ml-training-queue
+# 2. LocalQueue routes to training-cluster-queue
+# 3. Training has 3 CPUs nominal, needs 5 CPUs
+# 4. Kueue checks cohort: inference-cluster-queue has 2 idle CPUs
+# 5. Training borrows 2 CPUs from inference
+# 6. Job admitted with: 3 (own) + 2 (borrowed) = 5 CPUs
+# 7. Job runs for ~2 minutes (10 epochs × 12s)
+# 8. Job completes, borrowed resources released
