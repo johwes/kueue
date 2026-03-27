@@ -1,0 +1,8 @@
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: LocalQueue
+metadata:
+  name: ml-training-queue
+  namespace: ml-training
+spec:
+  clusterQueue: training-cluster-queue

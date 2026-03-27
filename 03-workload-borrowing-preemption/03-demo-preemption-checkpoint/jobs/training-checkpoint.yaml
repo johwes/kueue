@@ -79,14 +79,14 @@ spec:
           requests:
             # Request 3 CPUs (training's nominal quota)
             # Could also request 5 to trigger borrowing
-            cpu: "3"
+            cpu: "5"
 
             # Ultra-low memory for cost efficiency
             # At scale (100 users): 64Mi × 100 = 6.4GB total
             memory: "64Mi"
 
           limits:
-            cpu: "3"
+            cpu: "5"
             memory: "64Mi"
 
       volumes:
