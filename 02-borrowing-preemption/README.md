@@ -1,4 +1,20 @@
-# Module 03: Resource Borrowing & Preemption
+# Module 01: Resource Borrowing & Preemption
+
+This module solves the ultimate cluster admin challenge: **How do I keep my GPUs 100% utilized without making the Production team wait?**
+
+## Prerequisites
+
+**Required:**
+- OpenShift cluster with cluster-admin access
+- Module 00 (Operator installation) complete
+- `oc` CLI installed
+
+**Note:** This module is self-contained and creates its own ClusterQueues and LocalQueues. You do NOT need to complete Module 01 (01-kueue-basics) first. This module will use the same namespaces (`ml-training`, `ml-inference`) but will replace the basic ClusterQueues with cohort-based ones.
+
+**Time:** ~30 minutes
+
+---
+
 
 This module solves the ultimate cluster admin challenge: **How do I keep my GPUs 100% utilized without making the Production team wait?**
 
@@ -78,7 +94,7 @@ Time: 9 AM
 
 This module demonstrates borrowing and preemption through hands-on demos:
 
-### [01-setup](./01-setup/README.md)
+### [00-setup](./00-setup/README.md)
 **Configure Resource Sharing**
 
 Create the foundation for borrowing and preemption:
@@ -87,7 +103,7 @@ Create the foundation for borrowing and preemption:
 - WorkloadPriorityClasses (high vs. low priority)
 - Checkpoint storage (PVC for resumable jobs)
 
-### [02-demo-borrowing](./02-demo-borrowing/README.md)
+### [01-demo-borrowing](./01-demo-borrowing/README.md)
 **Demo 1: Borrowing in Action**
 
 Watch Training borrow idle Inference resources:
@@ -96,7 +112,7 @@ Watch Training borrow idle Inference resources:
 - Training **borrows** 2 CPUs from Inference
 - Job runs successfully with 5 CPUs total
 
-### [03-demo-preemption-checkpoint](./03-demo-preemption-checkpoint/README.md)
+### [02-demo-preemption-checkpoint](./02-demo-preemption-checkpoint/README.md)
 **Demo 2: Preemption with Resume**
 
 See production workloads reclaim resources:
@@ -107,7 +123,7 @@ See production workloads reclaim resources:
 - After Inference completes, Training **resumes** from checkpoint
 - No work lost!
 
-### [04-best-practices](./04-best-practices/README.md)
+### [03-best-practices](./03-best-practices/README.md)
 **Production Guidelines**
 
 Learn how to design production-ready configurations:
@@ -123,7 +139,7 @@ Learn how to design production-ready configurations:
 
 Before starting this module:
 
-1. **Complete Module 01 & 02** - You need to understand:
+1. **Complete Module 01 (01-kueue-basics) & 02** - You need to understand:
    - ResourceFlavors and ClusterQueues
    - LocalQueues and workload admission
    - Fair sharing basics
@@ -198,7 +214,7 @@ Savings: $31,000/year
 
 ## Next Steps
 
-Ready to maximize your cluster utilization? Start with [01-setup](./01-setup/README.md)!
+Ready to maximize your cluster utilization? Start with [00-setup](./00-setup/README.md)!
 
 ---
 

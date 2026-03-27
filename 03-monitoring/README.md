@@ -352,7 +352,7 @@ oc delete jobs -n ml-training --field-selector status.successful=1
 oc delete jobs -n ml-inference --all
 
 # Clean up all demo resources
-cd ../01-resource-configuration
+cd ../01-kueue-basics
 oc delete -f .
 ```
 

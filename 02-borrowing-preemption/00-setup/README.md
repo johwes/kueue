@@ -169,7 +169,7 @@ When resources are limited:
 
 ### Step 1: Verify Prerequisites
 
-Ensure Module 01 & 02 setup is complete:
+Ensure Module 01 (01-kueue-basics) & 02 setup is complete:
 
 ```bash
 # Verify namespaces exist
@@ -182,7 +182,7 @@ oc get localqueue -n ml-inference
 ```
 
 **Important:** Module 03 creates **new** ClusterQueues. You'll temporarily have 2 different cluster configurations:
-- Module 02: `cluster-total` (single ClusterQueue, no borrowing)
+- Module 01: `cluster-total` (single ClusterQueue, no borrowing)
 - Module 03: `training-cluster-queue` + `inference-cluster-queue` (cohort-based, with borrowing)
 
 ---
@@ -205,7 +205,7 @@ oc get clusterqueue
 Expected output:
 ```
 NAME                      COHORT           PENDING WORKLOADS
-cluster-total                              0                    ← From Module 02
+cluster-total                              0                    ← From Module 01
 training-cluster-queue    ml-shared-pool   0                    ← New!
 inference-cluster-queue   ml-shared-pool   0                    ← New!
 ```
@@ -387,7 +387,7 @@ preemption:
 ```bash
 # Force delete and recreate
 oc delete localqueue ml-training-queue -n ml-training
-oc apply -f ../01-resource-configuration/localqueue-ml-training.yaml
+oc apply -f ../../01-kueue-basics/00-setup/localqueue-ml-training.yaml
 
 # Update clusterQueue field
 oc patch localqueue ml-training-queue -n ml-training --type='merge' -p '{"spec":{"clusterQueue":"training-cluster-queue"}}'
