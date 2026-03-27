@@ -1,0 +1,85 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: inference-preempt
+  namespace: ml-inference
+  labels:
+    kueue.x-k8s.io/queue-name: ml-inference-queue
+    kueue.x-k8s.io/priority-class: high-priority  # CANNOT be preempted, CAN preempt others
+    app: inference-preempt
+    demo: preemption
+spec:
+  suspend: true  # Kueue controls admission
+  template:
+    metadata:
+      labels:
+        app: inference-preempt
+    spec:
+      containers:
+      - name: inference
+        image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+        command: ["sh", "-c"]
+        args:
+        - |
+          echo "=========================================="
+          echo "Production Inference: High Priority"
+          echo "=========================================="
+          echo "Job: $HOSTNAME"
+          echo "Started: $(date)"
+          echo ""
+          echo "⚡ HIGH PRIORITY workload"
+          echo "Priority: 1000 (can preempt priority 100)"
+          echo "Queue: inference-cluster-queue"
+          echo "Nominal quota: 2 CPUs"
+          echo ""
+          echo "Action: Reclaiming 2 CPUs from training"
+          echo "Result: Training job will be preempted"
+          echo ""
+          echo "Running critical customer inference..."
+          echo ""
+
+          # Simulate batch inference (5 batches)
+          for i in 1 2 3 4 5; do
+            echo "Processing batch $i/5 - Customer requests"
+            sleep 12
+          done
+
+          echo ""
+          echo "=========================================="
+          echo "Inference complete: $(date)"
+          echo ""
+          echo "Resources released"
+          echo "Training job can now resume from checkpoint"
+          echo "=========================================="
+
+        resources:
+          requests:
+            # Request 2 CPUs (inference's nominal quota)
+            # This will trigger reclaim from training if training borrowed these
+            cpu: "2"
+
+            # Ultra-low memory for cost efficiency
+            memory: "64Mi"
+
+          limits:
+            cpu: "2"
+            memory: "64Mi"
+
+      restartPolicy: Never
+
+  backoffLimit: 0
+
+# Expected behavior:
+# 1. Submitted while training is using 5 CPUs (3 own + 2 borrowed from inference)
+# 2. Inference needs 2 CPUs (its nominal quota)
+# 3. Kueue detects: training borrowed inference's 2 CPUs
+# 4. Priority check: inference (1000) > training (100)
+# 5. Action: PREEMPT training workload
+#    - Training workload marked Evicted=True
+#    - Training pod deleted
+#    - Training's borrowed CPUs reclaimed
+# 6. Inference admitted with 2 CPUs
+# 7. Inference runs for ~60 seconds (5 batches × 12s)
+# 8. Inference completes, releases 2 CPUs
+# 9. Training automatically readmitted (resources now available)

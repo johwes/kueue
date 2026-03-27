@@ -1,0 +1,17 @@
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: WorkloadPriorityClass
+metadata:
+  name: low-priority
+# Priority value: lower number = lower priority
+value: 100
+
+# Description explains when to use this priority
+description: "Low priority for training experiments that can be interrupted and resumed. Use for best-effort workloads that tolerate preemption."
+
+# Usage in Job:
+# apiVersion: batch/v1
+# kind: Job
+# metadata:
+#   labels:
+#     kueue.x-k8s.io/priority-class: low-priority

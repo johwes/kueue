@@ -1,0 +1,43 @@
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ClusterQueue
+metadata:
+  name: training-cluster-queue
+spec:
+  # Cohort: Resource-sharing club
+  # Training can borrow idle resources from inference-cluster-queue
+  cohort: ml-shared-pool
+
+  # Namespace selector: which namespaces can use this queue
+  namespaceSelector: {}  # Any namespace with proper LocalQueue
+
+  # Queueing strategy
+  queueingStrategy: BestEffortFIFO
+
+  # Preemption policies
+  preemption:
+    # Can reclaim borrowed resources from other queues in cohort
+    reclaimWithinCohort: Any
+
+    # Borrowing policy within cohort
+    borrowWithinCohort:
+      policy: Never  # Conservative: only use truly idle resources
+
+    # Within this queue, higher priority workloads can preempt lower priority
+    withinClusterQueue: LowerPriority
+
+  # Resource groups define what this queue manages
+  resourceGroups:
+  - coveredResources: ["cpu", "memory"]
+    flavors:
+    - name: default-flavor
+      resources:
+      # Nominal quota: guaranteed resources for this queue
+      - name: "cpu"
+        nominalQuota: 3        # Training team's guaranteed quota
+
+      - name: "memory"
+        nominalQuota: 512Mi    # Minimal for cost efficiency
+
+      # Note: With cohort, training can borrow up to 2 additional CPUs
+      # from inference-cluster-queue when idle (max 5 CPUs total)

@@ -1,0 +1,30 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: training-checkpoint-pvc
+  namespace: ml-training
+spec:
+  # Access mode: Single pod can mount at a time
+  # Perfect for sequential job execution
+  accessModes:
+    - ReadWriteOnce
+
+  # Resource request: Minimal storage for text logfiles
+  # 100Mi = enough for thousands of checkpoint entries
+  # Cost: ~$0.01/month (vs. 1Gi = $0.10/month)
+  resources:
+    requests:
+      storage: 100Mi
+
+  # Storage class: Uses cluster's default dynamic provisioner
+  # Automatically creates persistent volume
+  # If your cluster doesn't support dynamic provisioning,
+  # remove this field or specify a specific storage class
+  # storageClassName: <your-storage-class>
+
+# Why so small?
+# - Checkpoint file is just text: "0\n5\n10\n15\n..."
+# - 100Mi can store millions of lines
+# - At scale (100 users), 100Mi × 100 = 10GB total (cost-efficient)
+# - vs. 1Gi × 100 = 100GB (10x more expensive!)

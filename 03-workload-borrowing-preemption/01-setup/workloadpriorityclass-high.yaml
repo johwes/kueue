@@ -1,0 +1,17 @@
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: WorkloadPriorityClass
+metadata:
+  name: high-priority
+# Priority value: higher number = higher priority
+value: 1000
+
+# Description explains when to use this priority
+description: "High priority for production inference workloads with SLA requirements. Can preempt lower-priority workloads to guarantee resources."
+
+# Usage in Job:
+# apiVersion: batch/v1
+# kind: Job
+# metadata:
+#   labels:
+#     kueue.x-k8s.io/priority-class: high-priority

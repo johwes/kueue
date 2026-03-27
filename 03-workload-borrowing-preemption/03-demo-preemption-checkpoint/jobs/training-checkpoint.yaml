@@ -1,0 +1,113 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: training-checkpoint
+  namespace: ml-training
+  labels:
+    kueue.x-k8s.io/queue-name: ml-training-queue
+    kueue.x-k8s.io/priority-class: low-priority  # CAN be preempted
+    app: training-checkpoint
+    demo: preemption
+spec:
+  suspend: true  # Kueue controls admission
+  template:
+    metadata:
+      labels:
+        app: training-checkpoint
+    spec:
+      containers:
+      - name: trainer
+        image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+        command: ["/bin/bash"]
+        args:
+        - -c
+        - |
+          #!/bin/bash
+          echo "=========================================="
+          echo "Training with Checkpointing Enabled"
+          echo "=========================================="
+          echo "Job: $HOSTNAME"
+          echo "Started: $(date)"
+          echo ""
+
+          # Checkpoint configuration
+          PVC_PATH="/workspace/checkpoint"
+          LOGFILE="$PVC_PATH/training-progress.log"
+
+          # Initialize checkpoint file if first run
+          if [ ! -f "$LOGFILE" ]; then
+            echo "0" > "$LOGFILE"
+            echo "🆕 Starting fresh training from 0%"
+          fi
+
+          # Read last checkpoint
+          LAST_VALUE=$(tail -1 "$LOGFILE")
+          echo "📦 Loaded checkpoint: $LAST_VALUE"
+          echo "📊 Resuming from checkpoint: $LAST_VALUE%"
+          echo ""
+
+          # Training loop: 5% increments until 100%
+          CURRENT=$LAST_VALUE
+          while [ $CURRENT -lt 100 ]; do
+            # Increment progress
+            CURRENT=$((CURRENT + 5))
+            EPOCH=$((CURRENT / 5))
+
+            # Simulate training work
+            echo "🔄 Training progress: $CURRENT% (epoch $EPOCH)"
+
+            # CHECKPOINT: Save progress to PVC after each epoch
+            echo "$CURRENT" >> "$LOGFILE"
+
+            # Simulate epoch training time (10 seconds per 5%)
+            # Total time: 20 increments × 10s = ~3.5 minutes
+            sleep 10
+          done
+
+          echo ""
+          echo "✅ Training complete: 100%"
+          echo "Final checkpoint: $CURRENT"
+          echo "Completed: $(date)"
+          echo "=========================================="
+
+        volumeMounts:
+        - name: checkpoint
+          mountPath: /workspace/checkpoint
+
+        resources:
+          requests:
+            # Request 3 CPUs (training's nominal quota)
+            # Could also request 5 to trigger borrowing
+            cpu: "3"
+
+            # Ultra-low memory for cost efficiency
+            # At scale (100 users): 64Mi × 100 = 6.4GB total
+            memory: "64Mi"
+
+          limits:
+            cpu: "3"
+            memory: "64Mi"
+
+      volumes:
+      - name: checkpoint
+        persistentVolumeClaim:
+          claimName: training-checkpoint-pvc
+
+      restartPolicy: Never
+
+  backoffLimit: 0  # Don't retry - Kueue will readmit after preemption
+
+# Expected lifecycle:
+# 1. Job starts, reads checkpoint (0 initially)
+# 2. Progresses: 0% → 5% → 10% → 15% → 20% → 25%...
+# 3. Each 5% increment takes 10 seconds
+# 4. Progress saved to PVC after each increment
+# 5. If PREEMPTED at 23 seconds:
+#    - Last checkpoint: 20%
+#    - Pod deleted
+#    - Checkpoint file survives on PVC
+# 6. After readmission:
+#    - Read checkpoint: 20%
+#    - Resume from: 25% → 30% → ... → 100%
+# 7. No work lost!
