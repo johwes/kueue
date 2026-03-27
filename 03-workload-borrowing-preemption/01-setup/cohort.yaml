@@ -1,0 +1,9 @@
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: Cohort
+metadata:
+  name: ml-shared-pool
+spec:
+  # Empty spec - this creates a basic cohort for resource sharing
+  # ClusterQueues in this cohort can borrow from each other
+  # No additional quota at the cohort level (all quota is in ClusterQueues)

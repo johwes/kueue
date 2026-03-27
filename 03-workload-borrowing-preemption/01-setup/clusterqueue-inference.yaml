@@ -6,7 +6,7 @@ metadata:
 spec:
   # Cohort: Same resource-sharing club as training
   # Inference can borrow idle resources from training-cluster-queue
-  cohort: ml-shared-pool
+  cohortName: ml-shared-pool
 
   # Namespace selector: which namespaces can use this queue
   namespaceSelector: {}  # Any namespace with proper LocalQueue
