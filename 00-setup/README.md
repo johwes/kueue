@@ -52,80 +52,138 @@ Kueue is a Kubernetes-native job queueing system that solves the multi-tenancy c
 - Cluster administrator privileges
 - `oc` CLI installed and logged in
 
+---
+
+## Installation Overview
+
+Red Hat Build of Kueue installation involves **two steps**:
+
+1. **Install the Operator** - Deploys the Kueue operator
+2. **Create Kueue Instance** - Deploys the Kueue controllers
+
+This two-step process follows the [Red Hat documentation](https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/ai_workloads/red-hat-build-of-kueue#create-kueue-cr_install-kueue).
+
+---
+
 ## Installation Methods
 
-### Method 1: Using the OpenShift Web Console (Recommended)
+### Method 1: Using the Automated Script (Recommended)
 
-1. Log in to the OpenShift web console as a cluster administrator
-2. Navigate to **Operators → OperatorHub**
-3. Search for "Kueue"
-4. Select **Red Hat Build of Kueue**
-5. Click **Install**
-6. Configure installation options:
-   - **Update Channel**: `stable`
-   - **Installation Mode**: `All namespaces on the cluster`
-   - **Installed Namespace**: `openshift-operators`
-   - **Update Approval**: `Automatic` (or `Manual` for production)
-7. Click **Install**
-8. Wait for the operator to reach "Succeeded" status
-
-### Method 2: Using CLI (Automated Script)
-
-We've provided an automated installation script:
+We've provided an automated installation script that handles both steps:
 
 ```bash
 ./install.sh
 ```
 
 This script will:
-1. Create the necessary namespace
-2. Create an OperatorGroup
-3. Create a Subscription to install the operator
-4. Wait for installation to complete
-5. Verify the installation
+1. ✅ Install the Kueue operator via Subscription
+2. ✅ Wait for operator to be ready
+3. ✅ Create the Kueue instance (CR)
+4. ✅ Wait for kueue-controller-manager pods to be ready
+5. ✅ Verify the complete installation
 
-### Method 3: Manual CLI Installation
+### Method 2: Manual Step-by-Step Installation
 
 If you prefer manual control, follow these steps:
 
-```bash
-# Create operator namespace (if not using openshift-operators)
-oc create namespace kueue-system
+#### Step 1: Install the Operator
 
+```bash
 # Create operator subscription
 oc apply -f operator-subscription.yaml
 
-# Wait for CSV to be ready
-oc wait --for=condition=Succeeded csv -l operators.coreos.com/kueue-operator.openshift-operators -n openshift-operators --timeout=300s
-```
+# Wait for CSV to succeed
+oc wait --for=condition=Succeeded csv \
+  -l operators.coreos.com/kueue-operator.openshift-operators \
+  -n openshift-operators --timeout=300s
 
-## Verification
-
-After installation, verify the operator is running:
-
-```bash
-# Check operator pod status
-oc get pods -n openshift-operators | grep kueue
-
-# Verify CRDs are installed
-oc get crd | grep kueue
-
-# Check operator version
-oc get csv -n openshift-operators | grep kueue
+# Verify operator is running
+oc get pods -n openshift-operators | grep openshift-kueue-operator
 ```
 
 Expected output:
 ```
-NAME                                         READY   STATUS    RESTARTS   AGE
-kueue-controller-manager-xxxxx-xxxxx         2/2     Running   0          2m
+NAME                                        READY   STATUS    RESTARTS   AGE
+openshift-kueue-operator-xxxxx-xxxxx        1/1     Running   0          2m
 ```
 
-## Verify API Resources
-
-Confirm Kueue resources are available:
+#### Step 2: Create Kueue Instance
 
 ```bash
-oc api-resources | grep kueue
+# Create Kueue CR (deploys the actual Kueue controllers)
+oc apply -f kueue-instance.yaml
+
+# Wait for controller deployment
+oc wait --for=condition=available deployment/kueue-controller-manager \
+  -n openshift-operators --timeout=300s
+
+# Verify controller pods are running
+oc get pods -n openshift-operators | grep kueue-controller-manager
+```
+
+Expected output:
+```
+NAME                                        READY   STATUS    RESTARTS   AGE
+kueue-controller-manager-xxxxx-xxxxx        2/2     Running   0          2m
+```
+
+---
+
+## Understanding the Installation
+
+### What Gets Installed?
+
+**Operator (Step 1):**
+- `openshift-kueue-operator` deployment
+- Manages the Kueue lifecycle
+- Watches for Kueue CRs
+
+**Kueue Instance (Step 2):**
+- `kueue-controller-manager` deployment
+- Actual Kueue controllers that manage workloads
+- Processes ClusterQueues, LocalQueues, and Workloads
+
+### Files in This Directory
+
+| File | Purpose |
+|------|---------|
+| `install.sh` | Automated installation script (both steps) |
+| `operator-subscription.yaml` | Step 1: Operator installation |
+| `kueue-instance.yaml` | Step 2: Kueue CR (creates controllers) |
+| `README.md` | This documentation |
+
+---
+
+## Verification
+
+After installation, verify all components are running:
+
+### Check Operator
+
+```bash
+# Operator pods
+oc get pods -n openshift-operators | grep openshift-kueue-operator
+
+# Operator CSV
+oc get csv -n openshift-operators | grep kueue
+```
+
+### Check Kueue Controllers
+
+```bash
+# Controller pods (deployed by Kueue CR)
+oc get pods -n openshift-operators | grep kueue-controller-manager
+
+# Kueue instance (CR)
+oc get kueue cluster -n openshift-operators
+```
+
+### Check API Resources
+
+Confirm Kueue CRDs are available:
+
+```bash
+oc api-resources | grep kueue.x-k8s.io
 ```
 
 You should see:
@@ -135,31 +193,60 @@ You should see:
 - `workloads` (wl)
 - `admissionchecks`
 - `workloadpriorityclasses`
+- `cohorts`
 
-## Configuration
+### Complete Verification
 
-The operator is now installed but not configured. You'll create your first Kueue resources in the next module.
+```bash
+# All Kueue-related pods
+oc get pods -n openshift-operators | grep kueue
+
+# Expected output:
+# openshift-kueue-operator-xxxxx        1/1     Running   0   5m
+# kueue-controller-manager-xxxxx        2/2     Running   0   3m
+```
+
+---
 
 ## Troubleshooting
 
-### Operator not starting
+### Operator Not Starting
 
 ```bash
 # Check operator logs
-oc logs -n openshift-operators deployment/kueue-controller-manager
+oc logs -n openshift-operators deployment/openshift-kueue-operator
 
-# Check events
-oc get events -n openshift-operators --sort-by='.lastTimestamp'
-```
-
-### CRDs not appearing
-
-```bash
-# Verify subscription status
+# Check subscription status
 oc get subscription kueue-operator -n openshift-operators -o yaml
 
 # Check install plan
 oc get installplan -n openshift-operators
+```
+
+### Kueue CR Not Creating Controllers
+
+```bash
+# Check Kueue CR status
+oc get kueue cluster -n openshift-operators -o yaml
+
+# Check for conditions
+oc get kueue cluster -n openshift-operators -o jsonpath='{.status.conditions}' | jq
+
+# Check operator logs (operator reconciles the Kueue CR)
+oc logs -n openshift-operators deployment/openshift-kueue-operator
+```
+
+### Controller Pods Not Ready
+
+```bash
+# Check deployment status
+oc get deployment kueue-controller-manager -n openshift-operators
+
+# Check pod events
+oc describe pod -n openshift-operators -l control-plane=controller-manager
+
+# Check controller logs
+oc logs -n openshift-operators deployment/kueue-controller-manager
 ```
 
 ### Permission Issues
@@ -170,11 +257,22 @@ oc whoami
 oc auth can-i '*' '*' --all-namespaces
 ```
 
+---
+
 ## Next Steps
 
-Once the operator is installed and verified, proceed to [01-resource-configuration](../01-resource-configuration/README.md) to create your first Kueue resources.
+Once the operator and controllers are installed and verified, proceed to create your first Kueue resources:
+
+**Choose your learning path:**
+
+- **Path 1 - Core Concepts:** [Module 01: Kueue Basics](../01-kueue-basics/) - Learn ResourceFlavors, ClusterQueues, and fair sharing
+- **Path 2 - Advanced Features:** [Module 02: Borrowing & Preemption](../02-borrowing-preemption/) - Resource borrowing, cohorts, and priorities
+
+---
 
 ## Additional Resources
 
-- [Red Hat Build of Kueue Documentation](https://docs.redhat.com/en/documentation/red_hat_build_of_kueue/1.0/)
+- [Red Hat Build of Kueue Documentation](https://docs.redhat.com/en/documentation/red_hat_build_of_kueue/)
+- [Creating a Kueue CR](https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/ai_workloads/red-hat-build-of-kueue#create-kueue-cr_install-kueue)
 - [Operator Installation Guide](https://docs.redhat.com/en/documentation/openshift_container_platform/4.17/html/operators/index)
+- [Upstream Kueue Documentation](https://kueue.sigs.k8s.io/)

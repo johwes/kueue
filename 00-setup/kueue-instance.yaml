@@ -1,0 +1,17 @@
+---
+# Kueue Instance - Creates the actual Kueue controller
+# This CR deploys the kueue-controller-manager pods
+apiVersion: kueue.openshift.io/v1
+kind: Kueue
+metadata:
+  name: cluster
+spec:
+  # Configuration for Kueue
+  config:
+    # Enable integrations with Kubernetes Job resources
+    integrations:
+      frameworks:
+      - BatchJob  # Enables Kueue to manage Kubernetes Jobs
+
+  # Management state - Managed means operator controls the deployment
+  managementState: Managed
