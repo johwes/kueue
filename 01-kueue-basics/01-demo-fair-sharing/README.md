@@ -86,6 +86,10 @@ See how Kueue tracks resource usage:
 # Submit all jobs
 oc apply -f jobs/
 
+# Get jobs in queue
+sleep 2
+oc get workload -n ml-training
+
 # Check ClusterQueue utilization
 oc get clusterqueue cluster-total -o json | \
   jq '.status.flavorsReservation[0].resources'
