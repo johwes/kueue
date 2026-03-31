@@ -52,7 +52,7 @@ oc get workload -n ml-training
 
 ### Scenario 2: Queueing When Resources Exhausted
 
-Submit all jobs to see queueing in action:
+Submit all jobs to see queueing in action (Note, hit CTRL+C to break the watch command):
 
 ```bash
 # Submit all training jobs
