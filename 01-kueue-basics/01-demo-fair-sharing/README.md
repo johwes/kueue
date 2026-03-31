@@ -27,7 +27,7 @@ This directory contains realistic ML training jobs:
 
 ### Scenario 1: Single Job Lifecycle
 
-Watch a single job from submission to completion:
+Watch a single job from submission to completion (Note, hit CTRL+C to break the watch and log commands):
 
 ```bash
 # Submit one job
