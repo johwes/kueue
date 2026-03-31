@@ -56,8 +56,9 @@ oc get pvc -n ml-training training-checkpoint-pvc
 
 Expected output:
 ```
-NAME                        STATUS   VOLUME                    CAPACITY   ACCESS MODES
-training-checkpoint-pvc     Bound    pvc-xxxxx-xxxx-xxxx       100Mi      RWO
+NAME                      STATUS    VOLUME   CAPACITY   ACCESS MODES   STORAGECLASS                           VOLUMEATTRIBUTESCLASS   AGE
+training-checkpoint-pvc   Pending                                      ocs-external-storagecluster-ceph-rbd   <unset>                 xxx
+
 ```
 
 If STATUS is "Pending", wait or check troubleshooting section.
