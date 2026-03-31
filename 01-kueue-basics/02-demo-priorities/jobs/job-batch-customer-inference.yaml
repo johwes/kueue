@@ -8,6 +8,7 @@ metadata:
     kueue.x-k8s.io/queue-name: ml-inference-queue
     app: batch-inference
     priority: production
+    kueue-demo: "true"
 spec:
   suspend: true
   template:
@@ -17,43 +18,43 @@ spec:
         priority: production
     spec:
       containers:
-      - name: inference-worker
-        image: registry.access.redhat.com/ubi9/ubi-minimal:latest
-        command: ["sh", "-c"]
-        args:
-        - |
-          echo "=========================================="
-          echo "ML Inference: Batch Customer Prediction (PRODUCTION)"
-          echo "=========================================="
-          echo "Job: $HOSTNAME"
-          echo "Started: $(date)"
-          echo "SLA: Must complete within 15 minutes"
-          echo ""
-          echo "Loading production model from registry..."
-          sleep 10
-          echo "Processing customer batch 1/3 (5000 records)..."
-          sleep 15
-          echo "  - Predictions completed: 5000/5000"
-          echo "Processing customer batch 2/3 (5000 records)..."
-          sleep 15
-          echo "  - Predictions completed: 5000/5000"
-          echo "Processing customer batch 3/3 (5000 records)..."
-          sleep 15
-          echo "  - Predictions completed: 5000/5000"
-          echo ""
-          echo "Writing results to customer database..."
-          sleep 10
-          echo "Total records processed: 15,000"
-          echo ""
-          echo "Inference complete: $(date)"
-          echo "SLA: MET ✓"
-          echo "=========================================="
-        resources:
-          requests:
-            cpu: "1"
-            memory: "256Mi"
-          limits:
-            cpu: "1"
-            memory: "256Mi"
+        - name: inference-worker
+          image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+          command: ["sh", "-c"]
+          args:
+            - |
+              echo "=========================================="
+              echo "ML Inference: Batch Customer Prediction (PRODUCTION)"
+              echo "=========================================="
+              echo "Job: $HOSTNAME"
+              echo "Started: $(date)"
+              echo "SLA: Must complete within 15 minutes"
+              echo ""
+              echo "Loading production model from registry..."
+              sleep 10
+              echo "Processing customer batch 1/3 (5000 records)..."
+              sleep 15
+              echo "  - Predictions completed: 5000/5000"
+              echo "Processing customer batch 2/3 (5000 records)..."
+              sleep 15
+              echo "  - Predictions completed: 5000/5000"
+              echo "Processing customer batch 3/3 (5000 records)..."
+              sleep 15
+              echo "  - Predictions completed: 5000/5000"
+              echo ""
+              echo "Writing results to customer database..."
+              sleep 10
+              echo "Total records processed: 15,000"
+              echo ""
+              echo "Inference complete: $(date)"
+              echo "SLA: MET ✓"
+              echo "=========================================="
+          resources:
+            requests:
+              cpu: "1"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "256Mi"
       restartPolicy: Never
   backoffLimit: 2

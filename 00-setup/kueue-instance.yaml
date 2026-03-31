@@ -12,6 +12,7 @@ spec:
     integrations:
       frameworks:
       - BatchJob  # Enables Kueue to manage Kubernetes Jobs
-
+      labelKeysToCopy:
+      - key: kueue-demo
   # Management state - Managed means operator controls the deployment
   managementState: Managed

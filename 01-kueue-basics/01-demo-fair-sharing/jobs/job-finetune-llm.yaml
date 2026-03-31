@@ -8,6 +8,7 @@ metadata:
     kueue.x-k8s.io/queue-name: ml-training-queue
     app: model-training
     model: llm
+    kueue-demo: "true"
 spec:
   suspend: true
   template:
@@ -17,45 +18,45 @@ spec:
         model: llm
     spec:
       containers:
-      - name: trainer
-        image: registry.access.redhat.com/ubi9/ubi-minimal:latest
-        command: ["sh", "-c"]
-        args:
-        - |
-          echo "=========================================="
-          echo "ML Training: Fine-tuning Large Language Model"
-          echo "=========================================="
-          echo "Job: $HOSTNAME"
-          echo "Started: $(date)"
-          echo ""
-          echo "Loading base LLM (7B parameters)..."
-          sleep 20
-          echo "Loading domain-specific training data..."
-          sleep 15
-          echo "Initializing LoRA adapters for efficient fine-tuning..."
-          sleep 10
-          echo ""
-          echo "Fine-tuning iteration 1/5 - Perplexity: 12.5"
-          sleep 25
-          echo "Fine-tuning iteration 2/5 - Perplexity: 9.8"
-          sleep 25
-          echo "Fine-tuning iteration 3/5 - Perplexity: 7.2"
-          sleep 25
-          echo ""
-          echo "Evaluating on held-out test set..."
-          sleep 15
-          echo "Final Perplexity: 7.1 (13% improvement)"
-          echo "Saving fine-tuned model..."
-          sleep 10
-          echo ""
-          echo "Fine-tuning complete: $(date)"
-          echo "=========================================="
-        resources:
-          requests:
-            cpu: "3"
-            memory: "512Mi"
-          limits:
-            cpu: "3"
-            memory: "512Mi"
+        - name: trainer
+          image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+          command: ["sh", "-c"]
+          args:
+            - |
+              echo "=========================================="
+              echo "ML Training: Fine-tuning Large Language Model"
+              echo "=========================================="
+              echo "Job: $HOSTNAME"
+              echo "Started: $(date)"
+              echo ""
+              echo "Loading base LLM (7B parameters)..."
+              sleep 20
+              echo "Loading domain-specific training data..."
+              sleep 15
+              echo "Initializing LoRA adapters for efficient fine-tuning..."
+              sleep 10
+              echo ""
+              echo "Fine-tuning iteration 1/5 - Perplexity: 12.5"
+              sleep 25
+              echo "Fine-tuning iteration 2/5 - Perplexity: 9.8"
+              sleep 25
+              echo "Fine-tuning iteration 3/5 - Perplexity: 7.2"
+              sleep 25
+              echo ""
+              echo "Evaluating on held-out test set..."
+              sleep 15
+              echo "Final Perplexity: 7.1 (13% improvement)"
+              echo "Saving fine-tuned model..."
+              sleep 10
+              echo ""
+              echo "Fine-tuning complete: $(date)"
+              echo "=========================================="
+          resources:
+            requests:
+              cpu: "3"
+              memory: "512Mi"
+            limits:
+              cpu: "3"
+              memory: "512Mi"
       restartPolicy: Never
   backoffLimit: 2

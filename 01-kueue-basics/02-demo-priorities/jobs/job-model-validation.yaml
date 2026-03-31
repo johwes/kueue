@@ -7,6 +7,7 @@ metadata:
   labels:
     kueue.x-k8s.io/queue-name: ml-inference-queue
     app: model-validation
+    kueue-demo: "true"
 spec:
   suspend: true
   template:
@@ -15,47 +16,47 @@ spec:
         app: model-validation
     spec:
       containers:
-      - name: validator
-        image: registry.access.redhat.com/ubi9/ubi-minimal:latest
-        command: ["sh", "-c"]
-        args:
-        - |
-          echo "=========================================="
-          echo "ML Inference: Pre-Production Model Validation"
-          echo "=========================================="
-          echo "Job: $HOSTNAME"
-          echo "Started: $(date)"
-          echo ""
-          echo "Loading candidate model for validation..."
-          sleep 10
-          echo "Running inference on validation dataset..."
-          sleep 20
-          echo ""
-          echo "Performance Metrics:"
-          echo "  - Accuracy: 94.2%"
-          echo "  - Precision: 93.8%"
-          echo "  - Recall: 94.5%"
-          echo "  - F1-Score: 94.1%"
-          echo ""
-          echo "Latency benchmarks:"
-          echo "  - p50: 12ms"
-          echo "  - p95: 28ms"
-          echo "  - p99: 45ms"
-          echo ""
-          echo "Running A/B comparison against production model..."
-          sleep 20
-          echo "Result: New model shows 2.3% improvement"
-          echo ""
-          echo "Model validation PASSED ✓"
-          echo "Ready for production deployment"
-          echo "Validation complete: $(date)"
-          echo "=========================================="
-        resources:
-          requests:
-            cpu: "2"
-            memory: "256Mi"
-          limits:
-            cpu: "2"
-            memory: "256Mi"
+        - name: validator
+          image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+          command: ["sh", "-c"]
+          args:
+            - |
+              echo "=========================================="
+              echo "ML Inference: Pre-Production Model Validation"
+              echo "=========================================="
+              echo "Job: $HOSTNAME"
+              echo "Started: $(date)"
+              echo ""
+              echo "Loading candidate model for validation..."
+              sleep 10
+              echo "Running inference on validation dataset..."
+              sleep 20
+              echo ""
+              echo "Performance Metrics:"
+              echo "  - Accuracy: 94.2%"
+              echo "  - Precision: 93.8%"
+              echo "  - Recall: 94.5%"
+              echo "  - F1-Score: 94.1%"
+              echo ""
+              echo "Latency benchmarks:"
+              echo "  - p50: 12ms"
+              echo "  - p95: 28ms"
+              echo "  - p99: 45ms"
+              echo ""
+              echo "Running A/B comparison against production model..."
+              sleep 20
+              echo "Result: New model shows 2.3% improvement"
+              echo ""
+              echo "Model validation PASSED ✓"
+              echo "Ready for production deployment"
+              echo "Validation complete: $(date)"
+              echo "=========================================="
+          resources:
+            requests:
+              cpu: "2"
+              memory: "256Mi"
+            limits:
+              cpu: "2"
+              memory: "256Mi"
       restartPolicy: Never
   backoffLimit: 2
