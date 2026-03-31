@@ -41,7 +41,7 @@ This scenario demonstrates the core value of Kueue - ensuring production workloa
 cd $(git rev-parse --show-toplevel)/01-kueue-basics/02-demo-priorities
 
 # Submit training jobs first
-oc apply -f jobs/
+oc apply -f $(git rev-parse --show-toplevel)/01-kueue-basics/01-demo-fair-sharing/jobs/
 
 # Verify training is using resources
 oc get workload -n ml-training
