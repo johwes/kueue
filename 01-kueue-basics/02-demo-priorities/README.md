@@ -71,7 +71,7 @@ job-job-batch-customer-inference-xxxxx    ml-inference-queue   True       2s
 
 ```bash
 # Monitor workloads across both namespaces
-oc get workload -n ml-training -n ml-inference
+oc get workload -l kueue-demo=true --all-namespaces
 ```
 
 **Expected:**
@@ -93,7 +93,7 @@ ml-training    job-train-resnet-model-xxxxx           ml-training-queue
 
 ```bash
 # Watch as jobs complete and resources redistribute
-watch -n 2 "oc get workload -n ml-training -n ml-inference"
+watch -n 2 "oc get workload -l kueue-demo=true --all-namespaces"
 ```
 
 When jobs complete:
@@ -169,14 +169,14 @@ oc get clusterqueue cluster-total
 
 ```bash
 # View workloads across both namespaces
-oc get workload -n ml-training -n ml-inference
+oc get workload -l kueue-demo=true --all-namespaces
 
 # Check resource utilization
 oc get clusterqueue cluster-total -o json | \
   jq '.status.flavorsReservation[0].resources'
 
 # Monitor in real-time
-watch -n 2 "oc get workload -A"
+watch -n 2 "oc get workload -l kueue-demo=true --all-namespaces"
 
 # Check queue status
 oc get localqueue -A
