@@ -421,8 +421,8 @@ volumes:
 **Check:**
 ```bash
 # Verify both ClusterQueues have same cohort name
-oc get clusterqueue training-cluster-queue -o jsonpath='{.spec.cohort}'
-oc get clusterqueue inference-cluster-queue -o jsonpath='{.spec.cohort}'
+oc get clusterqueue training-cluster-queue -o jsonpath='{.spec.cohortName}'
+oc get clusterqueue inference-cluster-queue -o jsonpath='{.spec.cohortName}'
 
 # Both should output: ml-shared-pool
 ```
