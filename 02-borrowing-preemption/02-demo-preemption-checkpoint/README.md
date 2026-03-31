@@ -68,7 +68,7 @@ If STATUS is "Pending", wait or check troubleshooting section.
 ### Step 2: Submit Low-Priority Training Job with Checkpoint
 
 ```bash
-cd 03-demo-preemption-checkpoint
+cd $(git rev-parse --show-toplevel)/02-borrowing-preemption/02-demo-preemption-checkpoint/
 
 # Submit training job that uses borrowed resources
 oc apply -f jobs/training-checkpoint.yaml
