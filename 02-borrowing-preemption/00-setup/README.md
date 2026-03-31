@@ -379,20 +379,6 @@ preemption:
 
 ## Troubleshooting
 
-### LocalQueue Not Updating
-
-**Problem:** LocalQueue still points to old ClusterQueue
-
-**Solution:**
-```bash
-# Force delete and recreate
-oc delete localqueue ml-training-queue -n ml-training
-oc apply -f ../../01-kueue-basics/00-setup/localqueue-ml-training.yaml
-
-# Update clusterQueue field
-oc patch localqueue ml-training-queue -n ml-training --type='merge' -p '{"spec":{"clusterQueue":"training-cluster-queue"}}'
-```
-
 ### PVC Pending
 
 **Problem:** PVC stuck in "Pending" status
@@ -406,6 +392,7 @@ oc describe pvc training-checkpoint-pvc -n ml-training
 - No dynamic provisioning available
 - No storage class defined
 - Insufficient cluster storage
+- waiting for first consumer to be created before binding (Normal, PVC is ready to assigned to Pod/Job)
 
 **Workaround:** Use emptyDir instead (loses data on pod restart, but works for demo):
 ```yaml
