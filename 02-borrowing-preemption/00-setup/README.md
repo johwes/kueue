@@ -181,9 +181,9 @@ oc get localqueue -n ml-training
 oc get localqueue -n ml-inference
 ```
 
-**Important:** Module 03 creates **new** ClusterQueues. You'll temporarily have 2 different cluster configurations:
+**Important:** Module 02 creates **new** ClusterQueues. You'll temporarily have 2 different cluster configurations:
 - Module 01: `cluster-total` (single ClusterQueue, no borrowing)
-- Module 03: `training-cluster-queue` + `inference-cluster-queue` (cohort-based, with borrowing)
+- Module 02: `training-cluster-queue` + `inference-cluster-queue` (cohort-based, with borrowing)
 
 ---
 
