@@ -200,6 +200,10 @@ oc apply -f clusterqueue-inference.yaml
 
 # Verify both ClusterQueues are active
 oc get clusterqueue
+
+# If the Cohort column is empty, there might be a display issue, try this command.
+oc get clusterqueues.kueue.x-k8s.io -o custom-columns="NAME:.metadata.name,COHORT:.spec.cohortName,CPU_NOMINAL:.spec.resourceGroups[0].flavors[0].resources[0].nominalQuota"
+
 ```
 
 Expected output:
@@ -219,11 +223,14 @@ inference-cluster-queue   ml-shared-pool   0                    ← New!
 We need to update the LocalQueues to point to the cohort-based ClusterQueues:
 
 ```bash
-# Update training LocalQueue to use new ClusterQueue
-oc patch localqueue ml-training-queue -n ml-training --type='merge' -p '{"spec":{"clusterQueue":"training-cluster-queue"}}'
+# Delete inference LocalQueue
+oc delete localqueue ml-training-queue -n ml-training 
 
-# Update inference LocalQueue to use new ClusterQueue
-oc patch localqueue ml-inference-queue -n ml-inference --type='merge' -p '{"spec":{"clusterQueue":"inference-cluster-queue"}}'
+# Delete inference LocalQueue
+oc delete localqueue ml-inference-queue -n ml-inference 
+
+oc apply -f localqueue-inference.yaml
+oc apply -f localqueue-training.yaml
 
 # Verify the updates
 oc get localqueue -n ml-training -o yaml | grep clusterQueue
