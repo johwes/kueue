@@ -384,6 +384,6 @@ Utilization: 95%+ (training uses idle inference capacity)
 
 ## Next Steps
 
-Now that you've seen borrowing in action, proceed to [03-demo-preemption-checkpoint](../03-demo-preemption-checkpoint/README.md) to learn what happens when inference needs its resources back!
+Now that you've seen borrowing in action, proceed to [03-demo-preemption-checkpoint](../02-demo-preemption-checkpoint/README.md) to learn what happens when inference needs its resources back!
 
 **Key Question for Demo 2:** What happens if inference needs resources while training is using borrowed CPUs? Answer: **Preemption**!
