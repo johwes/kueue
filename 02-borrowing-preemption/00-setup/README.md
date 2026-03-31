@@ -418,7 +418,7 @@ oc get clusterqueue inference-cluster-queue -o jsonpath='{.spec.cohortName}'
 
 ## Next Steps
 
-Setup complete! Proceed to [02-demo-borrowing](../02-demo-borrowing/README.md) to see resource borrowing in action.
+Setup complete! Proceed to [02-demo-borrowing](../01-demo-borrowing/README.md) to see resource borrowing in action.
 
 ---
 
