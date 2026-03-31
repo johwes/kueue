@@ -37,8 +37,10 @@ This scenario demonstrates the core value of Kueue - ensuring production workloa
 **Step 1: Saturate cluster with training jobs**
 
 ```bash
+# Let's try to make sure we are in the 02-demo-priorities folder
+cd $(git rev-parse --show-toplevel)/01-kueue-basics/02-demo-priorities
+
 # Submit training jobs first
-cd ../01-demo-fair-sharing
 oc apply -f jobs/
 
 # Verify training is using resources
@@ -51,7 +53,6 @@ Expected: 2 training jobs admitted (4 CPUs), 1 queued (needs 2 more)
 
 ```bash
 # Submit production inference job
-cd ../02-demo-priorities
 oc apply -f jobs/job-batch-customer-inference.yaml
 
 # Check if it got admitted
