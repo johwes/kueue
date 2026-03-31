@@ -38,6 +38,12 @@ watch -n 2 "oc get workload,job -n ml-training"
 
 # View logs
 oc logs -n ml-training -l app=hyperparameter-tuning -f
+
+# Delete all training jobs
+oc delete jobs --all -n ml-training
+
+# Verify clean state
+oc get workload -n ml-training
 ```
 
 **Expected:** Job admits immediately, runs for ~60s, completes successfully.
@@ -57,6 +63,12 @@ oc get workload -n ml-training
 
 # Monitor queue
 watch -n 2 "oc get workload -n ml-training"
+
+# Delete all training jobs
+oc delete jobs --all -n ml-training
+
+# Verify clean state
+oc get workload -n ml-training
 ```
 
 **Expected:**
@@ -77,6 +89,12 @@ oc apply -f jobs/
 # Check ClusterQueue utilization
 oc get clusterqueue cluster-total -o json | \
   jq '.status.flavorsReservation[0].resources'
+
+# Delete all training jobs
+oc delete jobs --all -n ml-training
+
+# Verify clean state
+oc get workload -n ml-training
 ```
 
 **Expected Output:**
